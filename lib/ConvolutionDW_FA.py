@@ -5,9 +5,6 @@ import math
 
 from lib.Layer import Layer
 
-from lib.conv_utils import conv_output_length
-from lib.conv_utils import conv_input_length
-
 class ConvolutionDW(Layer):
 
     def __init__(self, input_sizes, filter_sizes, init, strides, padding, alpha, activation, bias, name=None, load=None, train=True):
@@ -21,7 +18,6 @@ class ConvolutionDW(Layer):
         bias = np.ones(shape=self.fout) * bias
         
         self.strides = strides
-        _, self.sh, self.sw, _ = self.strides
         self.padding = padding
         self.alpha = alpha
         self.activation = activation
@@ -47,20 +43,17 @@ class ConvolutionDW(Layer):
             else:
                 # glorot
                 assert(False)
-                
+
+        fb = np.copy(filters)
+
         self.filters = tf.Variable(filters, dtype=tf.float32)
         self.bias = tf.Variable(bias, dtype=tf.float32)
+        self.fb = tf.Variable(fb, dtype=tf.float32)
 
     ###################################################################
 
     def get_weights(self):
         return [(self.name, self.filters), (self.name + "_bias", self.bias)]
-
-    def output_shape(self):
-        oh = conv_output_length(self.h, self.fh, self.padding.lower(), self.sh)
-        ow = conv_output_length(self.w, self.fw, self.padding.lower(), self.sw)
-        od = self.fout
-        return [oh, oh, od]
 
     def num_params(self):
         filter_weights_size = self.fh * self.fw * self.fin * self.mult
@@ -74,7 +67,7 @@ class ConvolutionDW(Layer):
         
     def backward(self, AI, AO, DO): 
         DO = tf.multiply(DO, self.activation.gradient(AO))
-        DI = tf.nn.depthwise_conv2d_native_backprop_input(input_sizes=self.input_sizes, filter=self.filters, out_backprop=DO, strides=self.strides, padding=self.padding)
+        DI = tf.nn.depthwise_conv2d_native_backprop_input(input_sizes=self.input_sizes, filter=self.fb, out_backprop=DO, strides=self.strides, padding=self.padding)
         return DI
 
     def gv(self, AI, AO, DO):

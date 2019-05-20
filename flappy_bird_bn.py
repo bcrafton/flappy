@@ -20,6 +20,9 @@ from lib.Activation import Relu
 from lib.Activation import Linear
 
 batch_size = 32
+epsilon = 0.05
+decay = 0.99
+total_steps = int(1e6)
 
 ####################################
 
@@ -114,66 +117,59 @@ replay_buffer = deque(maxlen=10000)
 env = FlappyBirdEnv()
 state = env.reset()
 
-'''
-# this does not show the image.
-# need to look after the first step
-plt.imshow(state[:, :, 0])
-plt.show()
-'''
-
-total_steps = 100000
-
 action_list = []
 for e in range(total_steps):
     
     #####################################
 
-    action = predict.eval(feed_dict={s : [state]})
-    action_idx = np.argmax(action)
-    next_state, reward, done = env.step(action_idx)
-    
-    action = np.reshape(action, -1)
-    replay_buffer.append((state, action, reward, next_state, done))
-    
+    # should decay epsilon here ...
+    # rand < eps because eps is % random actions. 
+    if np.random.rand() < epsilon:
+        action_idx = env.env.action_space.sample()
+    else:
+        q_value = predict.eval(feed_dict={s : [state]})
+        action_idx = np.argmax(q_value)
+
+    action = np.zeros(2)
+    action[action_idx] = 1
     action_list.append(action_idx)
     
+    next_state, reward, done = env.step(action_idx)
+    replay_buffer.append((state, action, reward, next_state, done))
     state = next_state
-    '''
-    plt.imshow(state[:, :, 0])
-    plt.show()
-    '''
     
     if done:
-        print (e, env.total_reward, action_list)
+        print (e, env.total_reward, len(action_list), action_list)
         action_list = []
         state = env.reset()
     
-        #####################################
+    #####################################
 
-        if e > 1000:
-            minibatch = random.sample(replay_buffer, batch_size)
+    if e > 1000:
+        # could be far more efficient here if we stored the processed state, action, y values somewhere else.
+        minibatch = random.sample(replay_buffer, batch_size)
 
-            # get the batch variables
-            state_batch = [d[0] for d in minibatch]
-            action_batch = [d[1] for d in minibatch]
-            reward_batch = [d[2] for d in minibatch]
-            next_state_batch = [d[3] for d in minibatch]
+        # get the batch variables
+        state_batch = [d[0] for d in minibatch]
+        action_batch = [d[1] for d in minibatch]
+        reward_batch = [d[2] for d in minibatch]
+        next_state_batch = [d[3] for d in minibatch]
 
-            y_batch = []
-            next_reward_batch = predict.eval(feed_dict={s : next_state_batch})
-            for i in range(0, len(minibatch)):
-                done = minibatch[i][4]
-                
-                # if done, only equals reward
-                if done:
-                    y_batch.append(reward_batch[i])
-                else:
-                    y_batch.append(reward_batch[i] + 0.99 * np.max(next_reward_batch[i]))
+        y_batch = []
+        next_reward_batch = predict.eval(feed_dict={s : next_state_batch})
+        for i in range(0, len(minibatch)):
+            done = minibatch[i][4]
+            
+            # if done, only equals reward
+            if done:
+                y_batch.append(reward_batch[i])
+            else:
+                y_batch.append(reward_batch[i] + 0.99 * np.max(next_reward_batch[i]))
 
-            # perform gradient step
-            train.run(feed_dict = {s:state_batch, a:action_batch, y:y_batch})
+        # perform gradient step
+        train.run(feed_dict = {s:state_batch, a:action_batch, y:y_batch})
 
-        #####################################
+    #####################################
 
 
 

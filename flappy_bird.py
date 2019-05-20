@@ -5,6 +5,7 @@ import cv2
 import gym
 import gym_ple
 from collections import deque
+import random
 
 from lib.Model import Model
 from lib.Layer import Layer 
@@ -112,16 +113,56 @@ state = env.reset()
 total_steps = 100000
 for e in range(total_steps):
     print (e)
+    
+    #####################################
 
     action = predict.eval(feed_dict={s : state})
-    next_state, r, done = env.step(action)
+    # may need to fix reward process, bc it returns cumulative.
+    next_state, reward, done = env.step(action)
+    
+    # we can do this much simpler and better.
+    _state = np.reshape(state, (80, 80, 4))
+    _action = np.reshape(action, -1)
+    _reward = np.reshape(reward, -1)
+    _next_state = np.reshape(next_state, (80, 80, 4))
+    _done = np.reshape(done, -1)
+    replay_buffer.append((_state, _action, _reward, _next_state, _done))
+    
     state = next_state
     if done:
         state = env.reset()
     
+    #####################################
     
+    if e > 1000:
+        minibatch = random.sample(replay_buffer, batch_size)
 
+        # get the batch variables
+        state_batch = [d[0] for d in minibatch]
+        action_batch = [d[1] for d in minibatch]
+        reward_batch = [d[2] for d in minibatch]
+        next_state_batch = [d[3] for d in minibatch]
 
+        y_batch = []
+        next_reward_batch = predict.eval(feed_dict={s : next_state_batch})
+        for i in range(0, len(minibatch)):
+            done = minibatch[i][4]
+            # if done, only equals reward
+            if done:
+                y_batch.append(reward_batch[i])
+            else:
+                y_batch.append(reward_batch[i] + 0.99 * np.max(next_reward_batch[i]))
+
+        y_batch = np.reshape(y_batch, -1)
+
+        # perform gradient step
+        train.run(feed_dict = {
+            s : state_batch,
+            a : action_batch,
+            y : y_batch}
+        )
+
+    #####################################
 
 
 

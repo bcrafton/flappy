@@ -6,6 +6,7 @@ import gym
 import gym_ple
 from collections import deque
 import random
+import matplotlib.pyplot as plt
 
 from lib.Model import Model
 from lib.Layer import Layer 
@@ -59,13 +60,9 @@ class FlappyBirdEnv:
     def _process(self, state):
         output = cv2.cvtColor(state, cv2.COLOR_BGR2GRAY)
         output = output[:410, :]
-        # print (np.shape(output))
-        # output = cv2.resize(output, (84, 84))
-        # pretty sure this is okay bc (410 * 288 / (84 * 84 * 4)) > 1.
         output = cv2.resize(output, (80, 80))
         output = output / 255.0
         output = np.stack([output] * 4, axis=2)
-        # output = np.reshape(output, (1, 80, 80, 4))
         return output
 
 ####################################
@@ -108,6 +105,13 @@ replay_buffer = deque(maxlen=10000)
 env = FlappyBirdEnv()
 state = env.reset()
 
+'''
+# this does not show the image.
+# need to look after the first step
+plt.imshow(state[:, :, 0])
+plt.show()
+'''
+
 total_steps = 100000
 
 action_list = []
@@ -117,7 +121,6 @@ for e in range(total_steps):
 
     action = predict.eval(feed_dict={s : [state]})
     action_idx = np.argmax(action)
-    # may need to fix reward process, bc it returns cumulative.
     next_state, reward, done = env.step(action_idx)
     
     action = np.reshape(action, -1)
@@ -126,37 +129,42 @@ for e in range(total_steps):
     action_list.append(action_idx)
     
     state = next_state
+    '''
+    plt.imshow(state[:, :, 0])
+    plt.show()
+    '''
+    
     if done:
         print (e, env.total_reward, action_list)
         action_list = []
         state = env.reset()
     
-    #####################################
-    
-    if e > 1000:
-        minibatch = random.sample(replay_buffer, batch_size)
+        #####################################
 
-        # get the batch variables
-        state_batch = [d[0] for d in minibatch]
-        action_batch = [d[1] for d in minibatch]
-        reward_batch = [d[2] for d in minibatch]
-        next_state_batch = [d[3] for d in minibatch]
+        if e > 1000:
+            minibatch = random.sample(replay_buffer, batch_size)
 
-        y_batch = []
-        next_reward_batch = predict.eval(feed_dict={s : next_state_batch})
-        for i in range(0, len(minibatch)):
-            done = minibatch[i][4]
-            
-            # if done, only equals reward
-            if done:
-                y_batch.append(reward_batch[i])
-            else:
-                y_batch.append(reward_batch[i] + 0.99 * np.max(next_reward_batch[i]))
+            # get the batch variables
+            state_batch = [d[0] for d in minibatch]
+            action_batch = [d[1] for d in minibatch]
+            reward_batch = [d[2] for d in minibatch]
+            next_state_batch = [d[3] for d in minibatch]
 
-        # perform gradient step
-        train.run(feed_dict = {s:state_batch, a:action_batch, y:y_batch})
+            y_batch = []
+            next_reward_batch = predict.eval(feed_dict={s : next_state_batch})
+            for i in range(0, len(minibatch)):
+                done = minibatch[i][4]
+                
+                # if done, only equals reward
+                if done:
+                    y_batch.append(reward_batch[i])
+                else:
+                    y_batch.append(reward_batch[i] + 0.99 * np.max(next_reward_batch[i]))
 
-    #####################################
+            # perform gradient step
+            train.run(feed_dict = {s:state_batch, a:action_batch, y:y_batch})
+
+        #####################################
 
 
 

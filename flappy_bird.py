@@ -42,13 +42,11 @@ class FlappyBirdEnv:
         return self._process(state)
 
     def step(self, action):
-        action = np.argmax(action)
-        cumulated_reward = 0.0
         next_state, reward, done, _ = self.env.step(action)
-        cumulated_reward += self._reward_shaping(reward)
+        reward = self._reward_shaping(reward)
         self.total_step += 1
         self.total_reward += reward
-        return self._process(next_state), cumulated_reward, done
+        return self._process(next_state), reward, done
 
     def _reward_shaping(self, reward):
         if  reward > 0.0:
@@ -67,7 +65,7 @@ class FlappyBirdEnv:
         output = cv2.resize(output, (80, 80))
         output = output / 255.0
         output = np.stack([output] * 4, axis=2)
-        output = np.reshape(output, (1, 80, 80, 4))
+        # output = np.reshape(output, (1, 80, 80, 4))
         return output
 
 ####################################
@@ -111,25 +109,26 @@ env = FlappyBirdEnv()
 state = env.reset()
 
 total_steps = 100000
+
+action_list = []
 for e in range(total_steps):
-    print (e)
     
     #####################################
 
-    action = predict.eval(feed_dict={s : state})
+    action = predict.eval(feed_dict={s : [state]})
+    action_idx = np.argmax(action)
     # may need to fix reward process, bc it returns cumulative.
-    next_state, reward, done = env.step(action)
+    next_state, reward, done = env.step(action_idx)
     
-    # we can do this much simpler and better.
-    _state = np.reshape(state, (80, 80, 4))
-    _action = np.reshape(action, -1)
-    _reward = np.reshape(reward, -1)
-    _next_state = np.reshape(next_state, (80, 80, 4))
-    _done = np.reshape(done, -1)
-    replay_buffer.append((_state, _action, _reward, _next_state, _done))
+    action = np.reshape(action, -1)
+    replay_buffer.append((state, action, reward, next_state, done))
+    
+    action_list.append(action_idx)
     
     state = next_state
     if done:
+        print (e, env.total_reward, action_list)
+        action_list = []
         state = env.reset()
     
     #####################################
@@ -147,20 +146,15 @@ for e in range(total_steps):
         next_reward_batch = predict.eval(feed_dict={s : next_state_batch})
         for i in range(0, len(minibatch)):
             done = minibatch[i][4]
+            
             # if done, only equals reward
             if done:
                 y_batch.append(reward_batch[i])
             else:
                 y_batch.append(reward_batch[i] + 0.99 * np.max(next_reward_batch[i]))
 
-        y_batch = np.reshape(y_batch, -1)
-
         # perform gradient step
-        train.run(feed_dict = {
-            s : state_batch,
-            a : action_batch,
-            y : y_batch}
-        )
+        train.run(feed_dict = {s:state_batch, a:action_batch, y:y_batch})
 
     #####################################
 

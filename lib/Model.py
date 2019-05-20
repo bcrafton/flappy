@@ -136,19 +136,10 @@ class Model:
             else:
                 A[ii] = l.forward(A[ii-1])
             
-        '''
-        E = tf.nn.softmax(A[self.num_layers-1]) - Y
-        N = tf.shape(A[self.num_layers-1])[0]
-        N = tf.cast(N, dtype=tf.float32)
-        E = E / N
-        '''
-        
-        # readout = prediction
-        # p_reward is basically taking the predicted reward value of the action we took.
-        # that is why we multiply by action
-        p_reward = tf.reduce_sum(tf.multiply(A[self.num_layers-1], action), reduction_indices=1)
-        # want error, not cost. dont reduce mean.
-        e_reward = reward - p_reward
+        p_reward = tf.multiply(A[self.num_layers-1], action)
+        a_reward = tf.reshape(reward, (-1, 1))
+        a_reward = tf.multiply(a_reward, action)
+        e_reward = p_reward - a_reward
 
         for ii in range(self.num_layers-1, -1, -1):
             l = self.layers[ii]

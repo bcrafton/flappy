@@ -7,6 +7,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--lr', type=float, default=1e-4)
 parser.add_argument('--eps', type=float, default=1.)
 parser.add_argument('--gpu', type=int, default=0)
+parser.add_argument('--name', type=str, default="flappy")
 args = parser.parse_args()
 
 if args.gpu >= 0:
@@ -131,6 +132,14 @@ train = tf.train.AdamOptimizer(learning_rate=args.lr, beta1=0.9, beta2=0.999, ep
 
 ####################################
 
+filename = args.name + '.results'
+f = open(filename, "w")
+f.write(filename + "\n")
+f.write("total params: " + str(model.num_params()) + "\n")
+f.close()
+
+####################################
+
 sess = tf.InteractiveSession()
 sess.run(tf.initialize_all_variables())
     
@@ -161,7 +170,12 @@ for e in range(total_steps):
     state = next_state
     
     if done:
-        print (e, env.total_reward, len(action_list), action_list)
+        p = "%d %f" % (e, env.total_reward)
+        print (p)
+        f = open(filename, "a")
+        f.write(p + "\n")
+        f.close()
+
         action_list = []
         state = env.reset()
     

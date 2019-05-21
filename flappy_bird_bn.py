@@ -38,9 +38,9 @@ from lib.Activation import Relu
 from lib.Activation import Linear
 
 batch_size = 64
-epsilon = 0.05
-decay = 0.99
 total_steps = int(1e6)
+epsilon_init = 0.05
+decay_rate = epsilon_init / (1.0 * total_steps)
 
 ####################################
 
@@ -158,6 +158,8 @@ state = env.reset()
 
 action_list = []
 for e in range(total_steps):
+    
+    epsilon = epsilon_init - e * decay_rate
     
     #####################################
 

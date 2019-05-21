@@ -105,6 +105,7 @@ model = Model(layers=[l1_1, l1_2, l1_3, l1_4, \
 
 predict = model.predict(state=s)
 gvs = model.gvs(state=s, action=a, reward=y)
+get_weights = model.get_weights()
 train = tf.train.AdamOptimizer(learning_rate=1e-4, beta1=0.9, beta2=0.999, epsilon=1.).apply_gradients(grads_and_vars=gvs)
 
 ####################################
@@ -168,6 +169,10 @@ for e in range(total_steps):
 
         # perform gradient step
         train.run(feed_dict = {s:state_batch, a:action_batch, y:y_batch})
+
+    if (e % 1000) == 0:
+        w = sess.run(get_weights)
+        np.save('weights', w)
 
     #####################################
 

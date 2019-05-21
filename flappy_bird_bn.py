@@ -1,4 +1,19 @@
 
+import argparse
+import os
+import sys
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--lr', type=float, default=1e-4)
+parser.add_argument('--eps', type=float, default=1.)
+parser.add_argument('--gpu', type=int, default=0)
+args = parser.parse_args()
+
+if args.gpu >= 0:
+    os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
+    os.environ["CUDA_VISIBLE_DEVICES"]=str(args.gpu)
+
+
 import numpy as np
 import tensorflow as tf
 import cv2
@@ -6,7 +21,7 @@ import gym
 import gym_ple
 from collections import deque
 import random
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 
 from lib.Model import Model
 
@@ -112,7 +127,7 @@ model = Model(layers=[l1_1, l1_2, l1_3, l1_4, \
 predict = model.predict(state=s)
 gvs = model.gvs(state=s, action=a, reward=y)
 get_weights = model.get_weights()
-train = tf.train.AdamOptimizer(learning_rate=1e-4, beta1=0.9, beta2=0.999, epsilon=1.).apply_gradients(grads_and_vars=gvs)
+train = tf.train.AdamOptimizer(learning_rate=args.lr, beta1=0.9, beta2=0.999, epsilon=args.eps).apply_gradients(grads_and_vars=gvs)
 
 ####################################
 

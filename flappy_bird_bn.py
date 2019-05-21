@@ -50,19 +50,28 @@ class FlappyBirdEnv:
         self.env.seed(np.random.randint(0, 100000))
         self.total_reward = 0.0
         self.total_step = 0
+        self.state = None
 
     def reset(self):
-        state = self.env.reset()
         self.total_reward = 0.0
         self.total_step = 0
-        return self._process(state)
+        
+        frame = self.env.reset()
+        frame = self._process(frame)
+        self.state = deque([frame] * 4, maxlen=4)
+        
+        return np.stack(self.state, axis=2)
 
     def step(self, action):
-        next_state, reward, done, _ = self.env.step(action)
+        next_frame, reward, done, _ = self.env.step(action)
         reward = self._reward_shaping(reward)
         self.total_step += 1
         self.total_reward += reward
-        return self._process(next_state), reward, done
+        
+        next_frame = self._process(next_frame)
+        self.state.append(next_frame)
+        
+        return np.stack(self.state, axis=2), reward, done
 
     def _reward_shaping(self, reward):
         if  reward > 0.0:
@@ -77,7 +86,6 @@ class FlappyBirdEnv:
         output = output[:410, :]
         output = cv2.resize(output, (80, 80))
         output = output / 255.0
-        output = np.stack([output] * 4, axis=2)
         return output
 
 ####################################

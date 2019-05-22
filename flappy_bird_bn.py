@@ -39,7 +39,7 @@ from lib.Activation import Linear
 
 batch_size = 64
 total_steps = int(1e6)
-epsilon_init = 0.05
+epsilon_init = 0.1
 decay_rate = epsilon_init / (1.0 * total_steps)
 
 ####################################
@@ -51,7 +51,7 @@ class FlappyBirdEnv:
         self.total_reward = 0.0
         self.total_step = 0
         self.state = None
-        self.frame_skip = 4
+        self.frame_skip = 2
 
     def reset(self):
         self.total_reward = 0.0
@@ -66,8 +66,13 @@ class FlappyBirdEnv:
     def step(self, action):
         next_frame, reward, done, _ = self.env.step(action)
         reward = self._reward_shaping(reward)
-        
+        self.total_step += 1
+        self.total_reward += reward
+
         for _ in range(self.frame_skip):
+            if done:
+                break
+
             next_frame, reward, done, _ = self.env.step(1) # 1 is dont jump. 
             reward = self._reward_shaping(reward)
             self.total_step += 1
@@ -228,7 +233,7 @@ for e in range(total_steps):
 
     if (e % 1000) == 0:
         w = sess.run(get_weights)
-        np.save('weights', w)
+        np.save(args.name, w)
 
     #####################################
 

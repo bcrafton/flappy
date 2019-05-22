@@ -51,6 +51,7 @@ class FlappyBirdEnv:
         self.total_reward = 0.0
         self.total_step = 0
         self.state = None
+        self.frame_skip = 4
 
     def reset(self):
         self.total_reward = 0.0
@@ -65,8 +66,12 @@ class FlappyBirdEnv:
     def step(self, action):
         next_frame, reward, done, _ = self.env.step(action)
         reward = self._reward_shaping(reward)
-        self.total_step += 1
-        self.total_reward += reward
+        
+        for _ in range(self.frame_skip):
+            next_frame, reward, done, _ = self.env.step(1) # 1 is dont jump. 
+            reward = self._reward_shaping(reward)
+            self.total_step += 1
+            self.total_reward += reward
         
         next_frame = self._process(next_frame)
         self.state.append(next_frame)
@@ -178,6 +183,12 @@ for e in range(total_steps):
     next_state, reward, done = env.step(action_idx)
     replay_buffer.append((state, action, reward, next_state, done))
     state = next_state
+    
+    '''
+    print (action_idx)
+    plt.imshow(state[:, :, 3])
+    plt.show()
+    '''
     
     if done:
         p = "%d %f" % (e, env.total_reward)

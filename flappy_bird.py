@@ -63,9 +63,10 @@ class FlappyBirdEnv:
         self.total_step = 0
         
         action_vec = np.zeros(2)
-        action_vec[1] = 1
+        action_vec[0] = 1 # no jump
+        # action_vec[1] = 1 # jump
         
-        frame, reward, done = self.env.frame_step(action_vec) # 1 is do nothing. 
+        frame, reward, done = self.env.frame_step(action_vec) 
         reward = self._reward_shaping(reward)
 
         self.total_step += 1
@@ -104,10 +105,10 @@ class FlappyBirdEnv:
 ####################################
 
 train_fc = True
-weights_fc = None
+weights_fc = None # 'flappy.npy'
 
 train_conv = True
-weights_conv = None
+weights_conv = None # 'flappy.npy'
 
 ####################################
 
@@ -183,6 +184,9 @@ for e in range(total_steps):
     else:
         q_value = predict.eval(feed_dict={s : [state]})
         action_idx = np.argmax(q_value)
+
+    # action_idx = 0 # no jump
+    # action_idx = 1 # jump
 
     action = np.zeros(2)
     action[action_idx] = 1

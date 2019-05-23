@@ -47,6 +47,11 @@ class FullyConnected(Layer):
     def get_weights(self):
         return [(self.name, self.weights), (self.name + "_bias", self.bias)]
 
+    def set_weights(self, weight_dic):
+        weights = weight_dic[self.name]
+        bias = weight_dic[self.name + '_bias']
+        return [self.weights.assign(weights), self.bias.assign(bias)]
+
     def num_params(self):
         weights_size = self.input_size * self.output_size
         bias_size = self.output_size

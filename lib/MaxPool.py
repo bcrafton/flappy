@@ -24,6 +24,9 @@ class MaxPool(Layer):
     def get_weights(self):
         return []
 
+    def set_weights(self, weight_dic):
+        return []
+
     def output_shape(self):
         oh = conv_output_length(self.h, self.fh, self.padding.lower(), self.sh)
         ow = conv_output_length(self.w, self.fw, self.padding.lower(), self.sw)

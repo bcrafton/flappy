@@ -12,6 +12,9 @@ class Layer:
     def get_weights(self):
         pass
 
+    def set_weights(self, weight_dic):
+        assert(False)
+
     def output_shape(self):
         assert(False)
 

@@ -335,7 +335,18 @@ class Model:
                 weights[key] = value
             
         return weights
-        
+
+    def set_weights(self, weight_dic):
+        rets = []
+        for ii in range(self.num_layers):
+            l = self.layers[ii]
+            ret = l.set_weights(weight_dic)
+            rets.extend(ret)
+            
+        return rets
+
+    ####################################################################
+
     def up_to(self, X, N):
         A = [None] * (N + 1)
         

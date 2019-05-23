@@ -52,6 +52,11 @@ class Convolution(Layer):
     def get_weights(self):
         return [(self.name, self.filters), (self.name + "_bias", self.bias)]
 
+    def set_weights(self, weight_dic):
+        filters = weight_dic[self.name]
+        bias = weight_dic[self.name + '_bias']
+        return [self.filters.assign(filters), self.bias.assign(bias)]
+
     def output_shape(self):
         oh = conv_output_length(self.h, self.fh, self.padding.lower(), self.sh)
         ow = conv_output_length(self.w, self.fw, self.padding.lower(), self.sw)

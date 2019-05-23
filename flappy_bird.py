@@ -24,6 +24,13 @@ from collections import deque
 import random
 # import matplotlib.pyplot as plt
 
+####################################
+
+sys.path.append("game/")
+import wrapped_flappy_bird as game
+
+####################################
+
 from lib.Model import Model
 
 from lib.Layer import Layer 
@@ -46,50 +53,46 @@ decay_rate = epsilon_init / (1.0 * total_steps)
 
 class FlappyBirdEnv:
     def __init__(self):
-        self.env = gym.make('FlappyBird-v0')
-        self.env.seed(np.random.randint(0, 100000))
+        self.env = game.GameState()
         self.total_reward = 0.0
         self.total_step = 0
         self.state = None
-        self.frame_skip = 2
 
     def reset(self):
         self.total_reward = 0.0
         self.total_step = 0
         
-        frame = self.env.reset()
+        action_vec = np.zeros(2)
+        action_vec[1] = 1
+        
+        frame, reward, done = self.env.frame_step(action_vec) # 1 is do nothing. 
+        reward = self._reward_shaping(reward)
+
+        self.total_step += 1
+        self.total_reward += reward
+
         frame = self._process(frame)
         self.state = deque([frame] * 4, maxlen=4)
         
         return np.stack(self.state, axis=2)
 
     def step(self, action):
-        next_frame, reward, done, _ = self.env.step(action)
+        action_vec = np.zeros(2)
+        action_vec[action] = 1
+        
+        next_frame, reward, done = self.env.frame_step(action_vec)
         reward = self._reward_shaping(reward)
+        
         self.total_step += 1
         self.total_reward += reward
 
-        for _ in range(self.frame_skip):
-            if done:
-                break
-
-            next_frame, reward, done, _ = self.env.step(1) # 1 is dont jump. 
-            reward = self._reward_shaping(reward)
-            self.total_step += 1
-            self.total_reward += reward
-        
         next_frame = self._process(next_frame)
         self.state.append(next_frame)
         
         return np.stack(self.state, axis=2), reward, done
 
     def _reward_shaping(self, reward):
-        if  reward > 0.0:
-            return 1.0
-        elif reward < 0.0:
-            return -1.0
-        else:
-            return 0.01
+        return reward
 
     def _process(self, state):
         output = cv2.cvtColor(state, cv2.COLOR_BGR2GRAY)
@@ -176,7 +179,7 @@ for e in range(total_steps):
     # should decay epsilon here ...
     # rand < eps because eps is % random actions. 
     if np.random.rand() < epsilon:
-        action_idx = env.env.action_space.sample()
+        action_idx = np.random.randint(0, 2) # (0, 1) just returns only zeros ...
     else:
         q_value = predict.eval(feed_dict={s : [state]})
         action_idx = np.argmax(q_value)
@@ -196,7 +199,7 @@ for e in range(total_steps):
     '''
     
     if done:
-        p = "%d %f" % (e, env.total_reward)
+        p = "%d %f %d" % (e, env.total_reward, len(action_list))
         print (p)
         f = open(filename, "a")
         f.write(p + "\n")

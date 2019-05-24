@@ -45,8 +45,8 @@ from lib.Activation import Relu
 from lib.Activation import Linear
 
 batch_size = 64
-total_steps = int(1e6)
-epsilon_init = 0.1
+total_steps = int(1e7)
+epsilon_init = 0.001
 decay_rate = epsilon_init / (1.0 * total_steps)
 
 ####################################
@@ -93,22 +93,35 @@ class FlappyBirdEnv:
         return np.stack(self.state, axis=2), reward, done
 
     def _reward_shaping(self, reward):
-        return reward
+        if  reward == 1.0:
+            return 1.0
+        elif reward == -1.0:
+            return -1.0
+        elif reward == 0.1:
+            return 0.01
+        else:
+            assert(False)
 
-    def _process(self, state):
+    def _process(self, frame):
+        '''
         output = cv2.cvtColor(state, cv2.COLOR_BGR2GRAY)
         output = output[:410, :]
         output = cv2.resize(output, (80, 80))
         output = output / 255.0
         return output
-
+        '''
+        x_t = cv2.cvtColor(cv2.resize(frame, (80, 80)), cv2.COLOR_BGR2GRAY)
+        ret, x_t = cv2.threshold(x_t, 1, 255, cv2.THRESH_BINARY)
+        return x_t
+        
+        
 ####################################
 
 train_fc = True
-weights_fc = None # 'flappy.npy'
+weights_fc = 'weights.npy'
 
 train_conv = True
-weights_conv = None # 'flappy.npy'
+weights_conv = 'weights.npy'
 
 ####################################
 
@@ -117,32 +130,32 @@ a = tf.placeholder("float", [None, 2])
 y = tf.placeholder("float", [None])
 
 l1_1 = Convolution(input_sizes=[batch_size, 80, 80, 4], filter_sizes=[8, 8, 4, 32], init='alexnet', strides=[1,4,4,1], padding="SAME", name='conv1', load=weights_conv)
-l1_2 = BatchNorm(input_size=[batch_size, 20, 20, 32], name='conv1_bn', load=weights_conv)
+# l1_2 = BatchNorm(input_size=[batch_size, 20, 20, 32], name='conv1_bn', load=weights_conv)
 l1_3 = Relu()
 l1_4 = MaxPool(size=[batch_size, 20, 20, 32], ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding="SAME")
 
 l2_1 = Convolution(input_sizes=[batch_size, 10, 10, 32], filter_sizes=[4, 4, 32, 64], init='alexnet', strides=[1,2,2,1], padding="SAME", name='conv2', load=weights_conv)
-l2_2 = BatchNorm(input_size=[batch_size, 5, 5, 64], name='conv2_bn', load=weights_conv)
+# l2_2 = BatchNorm(input_size=[batch_size, 5, 5, 64], name='conv2_bn', load=weights_conv)
 l2_3 = Relu()
 
 l3_1 = Convolution(input_sizes=[batch_size, 5, 5, 64], filter_sizes=[3, 3, 64, 64], init='alexnet', strides=[1,1,1,1], padding="SAME", name='conv3', load=weights_conv)
-l3_2 = BatchNorm(input_size=[batch_size, 5, 5, 64], name='conv3_bn', load=weights_conv)
+# l3_2 = BatchNorm(input_size=[batch_size, 5, 5, 64], name='conv3_bn', load=weights_conv)
 l3_3 = Relu()
 
 l4 = ConvToFullyConnected(input_shape=[5, 5, 64])
 
 l5_1 = FullyConnected(input_shape=5*5*64, size=512, init='alexnet', name='fc1', load=weights_fc)
-l5_2 = BatchNorm(input_size=[batch_size, 512], name='fc1_bn', load=weights_fc)
+# l5_2 = BatchNorm(input_size=[batch_size, 512], name='fc1_bn', load=weights_fc)
 l5_3 = Relu()
 
 l6 = FullyConnected(input_shape=512, size=2, init='alexnet', name='fc2', load=weights_fc)
 
-model = Model(layers=[l1_1, l1_2, l1_3, l1_4, \
-                      l2_1, l2_2, l2_3,       \
-                      l3_1, l3_2, l3_3,       \
-                      l4,                     \
-                      l5_1, l5_2, l5_3,       \
-                      l6,                     \
+model = Model(layers=[l1_1, l1_3, l1_4, \
+                      l2_1, l2_3,       \
+                      l3_1, l3_3,       \
+                      l4,               \
+                      l5_1, l5_3,       \
+                      l6,               \
                       ])
 
 ####################################
@@ -181,6 +194,7 @@ for e in range(total_steps):
     # rand < eps because eps is % random actions. 
     if np.random.rand() < epsilon:
         action_idx = np.random.randint(0, 2) # (0, 1) just returns only zeros ...
+        assert(action_idx == 0 or action_idx == 1)
     else:
         q_value = predict.eval(feed_dict={s : [state]})
         action_idx = np.argmax(q_value)
@@ -205,6 +219,7 @@ for e in range(total_steps):
     if done:
         p = "%d %f %d" % (e, env.total_reward, len(action_list))
         print (p)
+        print (action_list)
         f = open(filename, "a")
         f.write(p + "\n")
         f.close()
@@ -214,7 +229,7 @@ for e in range(total_steps):
     
     #####################################
 
-    if e > 1000:
+    if e > 100:
         # could be far more efficient here if we stored the processed state, action, y values somewhere else.
         minibatch = random.sample(replay_buffer, batch_size)
 

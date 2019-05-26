@@ -120,10 +120,10 @@ class FlappyBirdEnv:
 ####################################
 
 train_fc = True
-weights_fc = 'weights.npy'
+weights_fc = None
 
 train_conv = True
-weights_conv = 'weights.npy'
+weights_conv = None
 
 ####################################
 

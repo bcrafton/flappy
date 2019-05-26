@@ -225,7 +225,7 @@ for e in range(total_steps):
 
         train1.run(feed_dict = {s1:state_batch, a1:action_batch, y1:y_batch})
 
-    if (e % 50000) == 0:
+    if (e % 2000) == 0:
         w = sess.run(get_weights1)
         np.save('weights', w)
 

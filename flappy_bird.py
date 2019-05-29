@@ -29,9 +29,9 @@ import random
 
 from lib.PPOModel import PPOModel
 
-total_episodes = int(1e5)
+total_episodes = int(1e4)
 epsilon_init = 0.1
-decay_rate = epsilon_init / (1.0 * total_episodes)
+epsilon_decay = epsilon_init / (1.0 * total_episodes * (args.mini_batch_size / args.batch_size))
 
 ####################################
 
@@ -99,7 +99,7 @@ class FlappyBirdEnv:
 
 ####################################
 
-model = PPOModel(nbatch=64, nclass=2, epsilon=0.1, decay=decay_rate)
+model = PPOModel(nbatch=64, nclass=2, epsilon_init=epsilon_init, epsilon_decay=epsilon_decay)
 set_weights = model.set_weights()
 
 replay_buffer = []

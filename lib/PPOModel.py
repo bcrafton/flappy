@@ -17,14 +17,15 @@ from lib.Activation import Relu
 from lib.Activation import Linear
 
 class PPOModel:
-    def __init__(self, nbatch, nclass, epsilon, decay):
+    def __init__(self, nbatch, nclass, epsilon_init, epsilon_decay):
         self.nbatch = nbatch
         self.nclass = nclass
         self.bias = tf.Variable(np.zeros(shape=(self.nbatch, self.nclass)), dtype=tf.float32)
         
         # want to move random action in here.
-        self.epsilon = epsilon
-        self.decay = decay
+        self.epsilon_init = epsilon_init
+        self.epsilon_decay = epsilon_decay
+        self.epsilon = self.epsilon_init
 
         self.states = tf.placeholder("float", [None, 80, 80, 4])
         self.actions = tf.placeholder("float", [None, 2])
@@ -122,6 +123,7 @@ class PPOModel:
         return grads_and_vars
 
     def train(self, states, actions, rewards, advantages):
+        self.epsilon = self.epsilon - self.epsilon_decay
         self.train_op.run(feed_dict={self.states:states, self.actions:actions, self.rewards:rewards, self.advantages:advantages})
 
 ####################################

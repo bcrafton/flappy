@@ -43,11 +43,14 @@ class PPOModel:
         self.opt = tf.train.AdamOptimizer(learning_rate=2.5e-4, beta1=0.9, beta2=0.999, epsilon=1.)
         self.train_op = self.opt.apply_gradients(grads_and_vars=self.gvs(self.states, self.actions, self.rewards, self.advantages))
         
+        self.get_weights_op = self.model1.get_weights()
+        self.set_weights_op = self.model2.set_weights(self.get_weights_op)
+        
     def get_weights(self):
-        return self.model1.get_weights()
+        return self.get_weights_op.run(feed_dict={})
 
     def set_weights(self):
-        return self.model2.set_weights(self.model1.get_weights())
+        return self.set_weights_op
         
     ####################################################################
 

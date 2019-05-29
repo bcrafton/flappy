@@ -100,6 +100,8 @@ class FlappyBirdEnv:
 ####################################
 
 model = PPOModel(nbatch=64, nclass=2, epsilon=0.1, decay=decay_rate)
+set_weights = model.set_weights()
+
 replay_buffer = []
 env = FlappyBirdEnv()
 state = env.reset()
@@ -115,7 +117,8 @@ reward_list = []
 for e in range(total_episodes):
 
     print ("%d/%d" % (e, total_episodes), reward_list)
-
+    reward_list = []
+            
     #####################################
 
     replay_buffer = []
@@ -144,35 +147,14 @@ for e in range(total_episodes):
     next_value, next_action = model.predict(next_state)
     next_value = np.max(next_value)
 
-    '''
-    print (np.shape(replay_buffer[0]['s']))
-    print (np.shape(replay_buffer[0]['v']))
-    print (np.shape(replay_buffer[0]['a']))
-    print (np.shape(replay_buffer[0]['r']))
-    print (np.shape(replay_buffer[0]['d']))
-    '''
-
     rets, advs = returns_advantages(replay_buffer, next_value)
-    
-    '''
-    print (np.shape(rets))
-    print (np.shape( [d['r'] for d in replay_buffer] ))
-    '''
-    
+
     #####################################
 
     states = [d['s'] for d in replay_buffer]
     rewards = rets
-    # rewards = [d['r'] for d in replay_buffer]
     advantages = advs
     actions = [d['a'] for d in replay_buffer]
-    
-    '''
-    print (np.shape(states[0]))
-    print (np.shape(rewards[0]))
-    print (np.shape(advantages[0]))
-    print (np.shape(actions[0]))
-    '''
     
     for _ in range(args.epochs):
         for batch in range(0, args.mini_batch_size, args.batch_size):
@@ -180,8 +162,7 @@ for e in range(total_episodes):
             e = batch + args.batch_size
             model.train(states[s:e], actions[s:e], rewards[s:e], advantages[s:e])
 
-    # figure this one out later.
-    # _ = sess.run(set_weights)
+    sess.run(set_weights, feed_dict={})
 
     #####################################
 

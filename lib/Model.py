@@ -4,12 +4,9 @@ import numpy as np
 np.set_printoptions(threshold=1000)
 
 class Model:
-    def __init__(self, layers, epsilon, decay):
+    def __init__(self, layers):
         self.num_layers = len(layers)
         self.layers = layers
-        # want to move random action in here.
-        self.epsilon = epsilon
-        self.decay = decay
         
     def num_params(self):
         param_sum = 0

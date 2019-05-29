@@ -27,18 +27,7 @@ from collections import deque
 import random
 # import matplotlib.pyplot as plt
 
-from lib.Model import Model
-
-from lib.Layer import Layer 
-from lib.ConvToFullyConnected import ConvToFullyConnected
-from lib.FullyConnected import FullyConnected
-from lib.Convolution import Convolution
-from lib.MaxPool import MaxPool
-from lib.BatchNorm import BatchNorm
-
-from lib.Activation import Activation
-from lib.Activation import Relu
-from lib.Activation import Linear
+from lib.PPOModel import PPOModel
 
 total_episodes = int(1e5)
 epsilon_init = 0.1
@@ -86,6 +75,10 @@ class FlappyBirdEnv:
         next_frame, reward, done, _ = self.env.step(action)
         reward = self._reward_shaping(reward)        
         next_frame = self._process(next_frame)
+        
+        self.total_reward += reward
+        self.total_step += 1
+        
         self.state.append(next_frame)
         return np.stack(self.state, axis=2), reward, done
 
@@ -106,39 +99,32 @@ class FlappyBirdEnv:
 
 ####################################
 
-sess = tf.InteractiveSession()
-sess.run(tf.initialize_all_variables())
-
-####################################
-
 model = PPOModel(nbatch=64, nclass=2, epsilon=0.1, decay=decay_rate)
 replay_buffer = []
 env = FlappyBirdEnv()
 state = env.reset()
 
+####################################
+
+sess = tf.InteractiveSession()
+sess.run(tf.initialize_all_variables())
+
+####################################
+
 for e in range(total_episodes):
-    
+
     #####################################
 
     replay_buffer = []
     for _ in range(args.mini_batch_size):
 
-        '''
-        q_value = predict1.eval(feed_dict={s1 : [state]})
-        q_value = np.squeeze(q_value)
-        
-        if np.random.rand() < epsilon:
-            action_idx = env.env.action_space.sample()
-        else:
-            action_idx = np.argmax(q_value)
-            
-        value = q_value[action_idx]
-        '''
+        print (env.total_step)
         
         value, action = model.predict(state)
+        action_idx = np.argmax(action)
         
         ################################
-
+        
         next_state, reward, done = env.step(action_idx)
 
         if done and env.total_step >= 10000:
@@ -156,6 +142,7 @@ for e in range(total_episodes):
     next_value = np.max(next_q_value)
     rets, advs = returns_advantages(replay_buffer, next_value)
     
+    '''
     #####################################
 
     states = [d['s'] for d in replay_buffer]
@@ -178,7 +165,7 @@ for e in range(total_episodes):
     _ = sess.run(set_weights)
 
     #####################################
-
+    '''
 
 
 

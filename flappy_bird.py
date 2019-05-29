@@ -111,7 +111,10 @@ sess.run(tf.initialize_all_variables())
 
 ####################################
 
+reward_list = []
 for e in range(total_episodes):
+
+    print ("%d/%d" % (e, total_episodes), reward_list)
 
     #####################################
 
@@ -135,6 +138,7 @@ for e in range(total_episodes):
         state = next_state
         
         if done:
+            reward_list.append(round(env.total_reward, 2))
             state = env.reset()
 
     next_value, next_action = model.predict(next_state)
@@ -174,8 +178,7 @@ for e in range(total_episodes):
         for batch in range(0, args.mini_batch_size, args.batch_size):
             s = batch
             e = batch + args.batch_size
-            print (np.shape(states[s:e]))
-            # model.train(states[s:e], actions[s:e], rewards[s:e], advantages[s:e])
+            model.train(states[s:e], actions[s:e], rewards[s:e], advantages[s:e])
 
     # figure this one out later.
     # _ = sess.run(set_weights)

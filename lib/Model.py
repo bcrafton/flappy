@@ -4,9 +4,12 @@ import numpy as np
 np.set_printoptions(threshold=1000)
 
 class Model:
-    def __init__(self, layers : tuple):
+    def __init__(self, layers, epsilon, decay):
         self.num_layers = len(layers)
         self.layers = layers
+        # want to move random action in here.
+        self.epsilon = epsilon
+        self.decay = decay
         
     def num_params(self):
         param_sum = 0
@@ -49,18 +52,14 @@ class Model:
         return A[self.num_layers-1]
 
     ####################################################################
-      
-    def gvs(self, state, action, reward):
-        A = [None] * self.num_layers
+
+    def forward(self, state):
+        return self.predict(state)
+
+    def backward(self, state, action, reward, forward):
+        A = forward
         D = [None] * self.num_layers
         grads_and_vars = []
-        
-        for ii in range(self.num_layers):
-            l = self.layers[ii]
-            if ii == 0:
-                A[ii] = l.forward(state)
-            else:
-                A[ii] = l.forward(A[ii-1])
         
         p_reward = tf.multiply(A[self.num_layers-1], action)
         a_reward = tf.reshape(reward, (-1, 1))

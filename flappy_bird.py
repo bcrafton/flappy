@@ -122,6 +122,7 @@ for e in range(total_episodes):
         
         value, action = model.predict(state)
         action_idx = np.argmax(action)
+        value = value[action_idx]
         
         ################################
         
@@ -129,7 +130,7 @@ for e in range(total_episodes):
 
         if done and env.total_step >= 10000:
             next_value, next_action = model.predict(next_state)
-            next_value = np.max(next_q_value)
+            next_value = np.max(next_value)
             reward += 0.99 * next_value
         
         replay_buffer.append({'s':state, 'v': value, 'a':action, 'r':reward, 'd':done})
@@ -139,7 +140,14 @@ for e in range(total_episodes):
             state = env.reset()
 
     next_value, next_action = model.predict(next_state)
-    next_value = np.max(next_q_value)
+    next_value = np.max(next_value)
+
+    print (np.shape(replay_buffer[0]['s']))
+    print (np.shape(replay_buffer[0]['v']))
+    print (np.shape(replay_buffer[0]['a']))
+    print (np.shape(replay_buffer[0]['r']))
+    print (np.shape(replay_buffer[0]['d']))
+
     rets, advs = returns_advantages(replay_buffer, next_value)
     
     '''

@@ -57,6 +57,7 @@ class PPOModel:
         action[action_idx] = 1
             
         return value, action
+        # return value[action_idx], action_idx
 
     def gvs(self, state, action, reward, advantage):
     

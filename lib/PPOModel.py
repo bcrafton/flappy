@@ -17,15 +17,18 @@ from lib.Activation import Relu
 from lib.Activation import Linear
 
 class PPOModel:
-    def __init__(self, nbatch, nclass, epsilon_init, epsilon_decay):
+    def __init__(self, sess, nbatch, nclass, epsilon_init, epsilon_decay):
+        self.sess = sess
         self.nbatch = nbatch
         self.nclass = nclass
         self.bias = tf.Variable(np.zeros(shape=(self.nbatch, self.nclass)), dtype=tf.float32)
         
         # want to move random action in here.
+        '''
         self.epsilon_init = epsilon_init
         self.epsilon_decay = epsilon_decay
         self.epsilon = self.epsilon_init
+        '''
 
         self.states = tf.placeholder("float", [None, 80, 80, 4])
         self.actions = tf.placeholder("float", [None, 2])
@@ -46,7 +49,10 @@ class PPOModel:
         
         self.get_weights_op = self.model1.get_weights()
         self.set_weights_op = self.model2.set_weights(self.get_weights_op)
-        
+
+        self.sample_action_op = tf.squeeze(self.pi1.sample(1), axis=0, name='sample_action')
+        self.eval_action = self.pi1.mode()
+
     def get_weights(self):
         return self.get_weights_op.run(feed_dict={})
 
@@ -55,20 +61,21 @@ class PPOModel:
         
     ####################################################################
 
-    def predict(self, state):
-        value = self.predict_op1.eval(feed_dict={self.states : [state]})
-        value = np.squeeze(value)
-        
-        if np.random.rand() < self.epsilon:
-            action_idx = np.random.randint(0, 2)
+    def predict(self, state, stochastic=True):
+        if stochastic:
+            action, value = self.sess.run([self.sample_action_op, self.predict_op1], {self.states: [state]})
         else:
-            action_idx = np.argmax(value)
-            
+            action, value = self.sess.run([self.eval_action, self.predict_op1], {self.states: [state]})
+
+        # print (action, value, action[0], value[0])
+        
+        value = value[0]
+        action_idx = action[0]
+        
         action = np.zeros(shape=2)
         action[action_idx] = 1
-            
+        
         return value, action
-        # return value[action_idx], action_idx
 
     def gvs(self, states, actions, rewards, advantages):
     
@@ -82,6 +89,8 @@ class PPOModel:
         values2 = tf.reduce_max(pred2, axis=1)
 
         ############
+        # DOES FORWARD = SELF.PI ? 
+        # OR CATEGORICAL(FORWARD) = SELF.PI ? 
 
         ratio = tf.exp(self.pi1.log_prob(actions) - self.pi2.log_prob(actions))
         ratio = tf.clip_by_value(ratio, 0, 10)
@@ -90,25 +99,6 @@ class PPOModel:
         policy_loss = -tf.reduce_mean(tf.minimum(surr1, surr2))
 
         entropy_loss = -tf.reduce_mean(self.pi1.entropy())
-
-        '''
-        def build_network(self, name, trainable=True):
-            with tf.variable_scope(name):
-                conv1 = tf.layers.conv2d(self.states, 32, 8, 4, activation=tf.nn.relu, trainable=trainable)
-                conv2 = tf.layers.conv2d(conv1, 64, 4, 2, activation=tf.nn.relu, trainable=trainable)
-                conv3 = tf.layers.conv2d(conv2, 64, 3, 1, activation=tf.nn.relu, trainable=trainable)
-                flattened = tf.layers.flatten(conv3)
-                fc = tf.layers.dense(flattened, 512, activation=tf.nn.relu, trainable=trainable)
-
-                values = tf.squeeze(tf.layers.dense(fc, 1, trainable=trainable), axis=-1)
-                action_logits = tf.layers.dense(fc, action_space_dim, trainable=trainable)
-                action_dists = tf.distributions.Categorical(logits=action_logits)
-
-                params = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=name)
-
-                return action_dists, values, params
-        '''
-        # figure out what 'values' are.
 
         clipped_value_estimate = values2 + tf.clip_by_value(values1 - values2, -0.1, 0.1)
         value_loss_1 = tf.squared_difference(clipped_value_estimate, rewards)
@@ -123,7 +113,7 @@ class PPOModel:
         return grads_and_vars
 
     def train(self, states, actions, rewards, advantages):
-        self.epsilon = self.epsilon - self.epsilon_decay
+        # self.epsilon = self.epsilon - self.epsilon_decay
         self.train_op.run(feed_dict={self.states:states, self.actions:actions, self.rewards:rewards, self.advantages:advantages})
 
 ####################################

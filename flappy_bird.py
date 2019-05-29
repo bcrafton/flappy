@@ -31,7 +31,7 @@ from lib.PPOModel import PPOModel
 
 total_episodes = int(1e4)
 epsilon_init = 0.1
-epsilon_decay = epsilon_init / (1.0 * total_episodes * (args.mini_batch_size / args.batch_size))
+epsilon_decay = 2. * epsilon_init / (1.0 * total_episodes * (args.mini_batch_size / args.batch_size))
 
 ####################################
 
@@ -99,7 +99,11 @@ class FlappyBirdEnv:
 
 ####################################
 
-model = PPOModel(nbatch=64, nclass=2, epsilon_init=epsilon_init, epsilon_decay=epsilon_decay)
+sess = tf.InteractiveSession()
+
+####################################
+
+model = PPOModel(sess=sess, nbatch=64, nclass=2, epsilon_init=epsilon_init, epsilon_decay=epsilon_decay)
 set_weights = model.set_weights()
 
 replay_buffer = []
@@ -108,7 +112,6 @@ state = env.reset()
 
 ####################################
 
-sess = tf.InteractiveSession()
 sess.run(tf.initialize_all_variables())
 
 ####################################

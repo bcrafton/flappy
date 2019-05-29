@@ -154,6 +154,8 @@ class PPO(object):
                 }
                 sess.run(self.train_op, fd)
 
+    # only time we call this [evaluate_state] is for inference, not training. 
+    # so mode just returns the largest thing ? which would be predict ? 
     def evaluate_state(self, state, stochastic=True):
         if stochastic:
             action, value = self.sess.run(

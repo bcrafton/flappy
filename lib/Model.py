@@ -51,24 +51,28 @@ class Model:
     ####################################################################
 
     def forward(self, state):
-        return self.predict(state)
+        A = [None] * self.num_layers
+        
+        for ii in range(self.num_layers):
+            l = self.layers[ii]
+            if ii == 0:
+                A[ii] = l.forward(state)
+            else:
+                A[ii] = l.forward(A[ii-1])
+                
+        return A[self.num_layers-1], A
 
-    def backward(self, state, action, reward, forward):
+    def backward(self, state, forward, grad):
         A = forward
         D = [None] * self.num_layers
         grads_and_vars = []
-        
-        p_reward = tf.multiply(A[self.num_layers-1], action)
-        a_reward = tf.reshape(reward, (-1, 1))
-        a_reward = tf.multiply(a_reward, action)
-        e_reward = p_reward - a_reward
-        
+                
         for ii in range(self.num_layers-1, -1, -1):
             l = self.layers[ii]
             
             if (ii == self.num_layers-1):
-                D[ii] = l.backward(A[ii-1], A[ii], e_reward)
-                gvs = l.gv(A[ii-1], A[ii], e_reward)
+                D[ii] = l.backward(A[ii-1], A[ii], grad)
+                gvs = l.gv(A[ii-1], A[ii], grad)
                 grads_and_vars.extend(gvs)
             elif (ii == 0):
                 D[ii] = l.backward(state, A[ii], D[ii+1])

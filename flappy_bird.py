@@ -118,8 +118,6 @@ for e in range(total_episodes):
     replay_buffer = []
     for _ in range(args.mini_batch_size):
 
-        print (env.total_step)
-        
         value, action = model.predict(state)
         action_idx = np.argmax(action)
         value = value[action_idx]
@@ -142,38 +140,47 @@ for e in range(total_episodes):
     next_value, next_action = model.predict(next_state)
     next_value = np.max(next_value)
 
+    '''
     print (np.shape(replay_buffer[0]['s']))
     print (np.shape(replay_buffer[0]['v']))
     print (np.shape(replay_buffer[0]['a']))
     print (np.shape(replay_buffer[0]['r']))
     print (np.shape(replay_buffer[0]['d']))
+    '''
 
     rets, advs = returns_advantages(replay_buffer, next_value)
     
     '''
+    print (np.shape(rets))
+    print (np.shape( [d['r'] for d in replay_buffer] ))
+    '''
+    
     #####################################
 
     states = [d['s'] for d in replay_buffer]
-    # rewards = rets
-    rewards = [d['r'] for d in replay_buffer]
+    rewards = rets
+    # rewards = [d['r'] for d in replay_buffer]
     advantages = advs
     actions = [d['a'] for d in replay_buffer]
     
+    '''
     print (np.shape(states[0]))
     print (np.shape(rewards[0]))
     print (np.shape(advantages[0]))
     print (np.shape(actions[0]))
+    '''
     
     for _ in range(args.epochs):
         for batch in range(0, args.mini_batch_size, args.batch_size):
             s = batch
             e = batch + args.batch_size
-            model.train(states, actions, rewards, advantages)
+            print (np.shape(states[s:e]))
+            # model.train(states[s:e], actions[s:e], rewards[s:e], advantages[s:e])
 
-    _ = sess.run(set_weights)
+    # figure this one out later.
+    # _ = sess.run(set_weights)
 
     #####################################
-    '''
 
 
 

@@ -14,18 +14,6 @@ class Model:
             l = self.layers[ii]
             param_sum += l.num_params()
         return param_sum
-
-    def predict(self, state):
-        A = [None] * self.num_layers
-        
-        for ii in range(self.num_layers):
-            l = self.layers[ii]
-            if ii == 0:
-                A[ii] = l.forward(state)
-            else:
-                A[ii] = l.forward(A[ii-1])
-                
-        return A[self.num_layers-1]
         
     def get_weights(self):
         weights = {}
@@ -45,6 +33,22 @@ class Model:
             rets.extend(ret)
             
         return rets
+
+    ####################################################################
+
+    def predict(self, state):
+        A = [None] * self.num_layers
+        
+        for ii in range(self.num_layers):
+            l = self.layers[ii]
+            if ii == 0:
+                A[ii] = l.forward(state)
+            else:
+                A[ii] = l.forward(A[ii-1])
+                
+        return A[self.num_layers-1]
+
+    ####################################################################
       
     def gvs(self, state, action, reward):
         A = [None] * self.num_layers
@@ -80,7 +84,6 @@ class Model:
                 grads_and_vars.extend(gvs)
                 
         return grads_and_vars
-
 
         
         

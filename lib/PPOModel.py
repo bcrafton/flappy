@@ -17,18 +17,13 @@ from lib.Activation import Relu
 from lib.Activation import Linear
 
 class PPOModel:
-    def __init__(self, sess, nbatch, nclass, epsilon_init, epsilon_decay):
+    def __init__(self, sess, nbatch, nclass, epsilon, decay_max):
         self.sess = sess
         self.nbatch = nbatch
         self.nclass = nclass
         self.bias = tf.Variable(np.zeros(shape=(self.nbatch, self.nclass)), dtype=tf.float32)
-        
-        # want to move random action in here.
-        '''
-        self.epsilon_init = epsilon_init
-        self.epsilon_decay = epsilon_decay
-        self.epsilon = self.epsilon_init
-        '''
+        self.epsilon = epsilon
+        self.decay_max = decay_max
 
         self.states = tf.placeholder("float", [None, 80, 80, 4])
         self.actions = tf.placeholder("float", [None, 2])
@@ -52,12 +47,16 @@ class PPOModel:
 
         self.sample_action_op = tf.squeeze(self.pi1.sample(1), axis=0, name='sample_action')
         self.eval_action = self.pi1.mode()
+        
+        global_step = tf.train.get_or_create_global_step()
+        self.global_step_op = global_step.assign_add(1)
 
     def get_weights(self):
         return self.get_weights_op.run(feed_dict={})
 
     def set_weights(self):
-        return self.set_weights_op
+        self.sess.run(self.set_weights_op, feed_dict={})
+        self.sess.run(self.global_step_op, feed_dict={})
         
     ####################################################################
 
@@ -67,8 +66,6 @@ class PPOModel:
         else:
             action, value = self.sess.run([self.eval_action, self.predict_op1], {self.states: [state]})
 
-        # print (action, value, action[0], value[0])
-        
         value = value[0]
         action_idx = action[0]
         
@@ -91,16 +88,19 @@ class PPOModel:
         ############
         # DOES FORWARD = SELF.PI ? 
         # OR CATEGORICAL(FORWARD) = SELF.PI ? 
+        
+        global_step = tf.train.get_or_create_global_step()
+        epsilon_decay = tf.train.polynomial_decay(self.epsilon, global_step, self.decay_max, 0.001)
 
         ratio = tf.exp(self.pi1.log_prob(actions) - self.pi2.log_prob(actions))
         ratio = tf.clip_by_value(ratio, 0, 10)
         surr1 = advantages * ratio
-        surr2 = advantages * tf.clip_by_value(ratio, 1 - 0.1, 1 + 0.1)
+        surr2 = advantages * tf.clip_by_value(ratio, 1 - epsilon_decay, 1 + epsilon_decay)
         policy_loss = -tf.reduce_mean(tf.minimum(surr1, surr2))
 
         entropy_loss = -tf.reduce_mean(self.pi1.entropy())
 
-        clipped_value_estimate = values2 + tf.clip_by_value(values1 - values2, -0.1, 0.1)
+        clipped_value_estimate = values2 + tf.clip_by_value(values1 - values2, -epsilon_decay, epsilon_decay)
         value_loss_1 = tf.squared_difference(clipped_value_estimate, rewards)
         value_loss_2 = tf.squared_difference(values1, rewards)
         value_loss = 0.5 * tf.reduce_mean(tf.maximum(value_loss_1, value_loss_2))
@@ -113,9 +113,12 @@ class PPOModel:
         return grads_and_vars
 
     def train(self, states, actions, rewards, advantages):
-        # self.epsilon = self.epsilon - self.epsilon_decay
         self.train_op.run(feed_dict={self.states:states, self.actions:actions, self.rewards:rewards, self.advantages:advantages})
-
+        # just move this to set_weights, where we do it every update anyways
+        # self.sess.run(self.global_step_op, feed_dict={})
+        # step = self.sess.run(self.global_step_op, feed_dict={})
+        # print (step)
+        
 ####################################
         
 def create_model(nbatch):

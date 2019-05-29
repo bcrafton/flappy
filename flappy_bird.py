@@ -103,8 +103,7 @@ sess = tf.InteractiveSession()
 
 ####################################
 
-model = PPOModel(sess=sess, nbatch=64, nclass=2, epsilon_init=epsilon_init, epsilon_decay=epsilon_decay)
-set_weights = model.set_weights()
+model = PPOModel(sess=sess, nbatch=64, nclass=2, epsilon=0.1, decay_max=8000)
 
 replay_buffer = []
 env = FlappyBirdEnv()
@@ -165,7 +164,7 @@ for e in range(total_episodes):
             e = batch + args.batch_size
             model.train(states[s:e], actions[s:e], rewards[s:e], advantages[s:e])
 
-    sess.run(set_weights, feed_dict={})
+    model.set_weights()
 
     #####################################
 

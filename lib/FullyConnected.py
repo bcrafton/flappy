@@ -9,7 +9,7 @@ from lib.Activation import Linear
 
 class FullyConnected(Layer):
 
-    def __init__(self, input_shape, size, init, activation=None, bias=0., alpha=0., name=None, load=None, train=True):
+    def __init__(self, input_shape, size, init=None, activation=None, bias=0., alpha=0., name=None, load=None, train=True):
 
         self.input_size = input_shape
         self.output_size = size
@@ -36,8 +36,12 @@ class FullyConnected(Layer):
             elif init == "alexnet":
                 weights = np.random.normal(loc=0.0, scale=0.01, size=self.size)
             else:
-                # glorot
-                assert(False)
+                # https://www.tensorflow.org/api_docs/python/tf/glorot_uniform_initializer
+                # can verify we did this right ...
+                fan_in = self.input_size
+                fan_out = self.output_size
+                lim = np.sqrt(6. / (fan_in + fan_out))
+                weights = np.random.uniform(low=-lim, high=lim, size=self.size)
         
         self.weights = tf.Variable(weights, dtype=tf.float32)
         self.bias = tf.Variable(bias, dtype=tf.float32)

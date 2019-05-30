@@ -114,42 +114,33 @@ class PPOModel:
 
     def train(self, states, actions, rewards, advantages):
         self.train_op.run(feed_dict={self.states:states, self.actions:actions, self.rewards:rewards, self.advantages:advantages})
-        # just move this to set_weights, where we do it every update anyways
-        # self.sess.run(self.global_step_op, feed_dict={})
-        # step = self.sess.run(self.global_step_op, feed_dict={})
-        # print (step)
         
 ####################################
         
 def create_model(nbatch):
-    l1_1 = Convolution(input_sizes=[nbatch, 80, 80, 4], filter_sizes=[8, 8, 4, 32], init='sqrt_fan_in', strides=[1,4,4,1], padding="SAME", name='conv1')
-    l1_2 = BatchNorm(input_size=[nbatch, 20, 20, 32], name='conv1_bn')
-    l1_3 = Relu()
-    l1_4 = MaxPool(size=[nbatch, 20, 20, 32], ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding="SAME")
+    l1_1 = Convolution(input_sizes=[nbatch, 80, 80, 4], filter_sizes=[8, 8, 4, 32], strides=[1,4,4,1], padding="SAME", name='conv1')
+    l1_2 = Relu()
+    l1_3 = MaxPool(size=[nbatch, 20, 20, 32], ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding="SAME")
 
-    l2_1 = Convolution(input_sizes=[nbatch, 10, 10, 32], filter_sizes=[4, 4, 32, 64], init='sqrt_fan_in', strides=[1,2,2,1], padding="SAME", name='conv2')
-    l2_2 = BatchNorm(input_size=[nbatch, 5, 5, 64], name='conv2_bn')
-    l2_3 = Relu()
+    l2_1 = Convolution(input_sizes=[nbatch, 10, 10, 32], filter_sizes=[4, 4, 32, 64], strides=[1,2,2,1], padding="SAME", name='conv2')
+    l2_2 = Relu()
 
-    l3_1 = Convolution(input_sizes=[nbatch, 5, 5, 64], filter_sizes=[3, 3, 64, 64], init='sqrt_fan_in', strides=[1,1,1,1], padding="SAME", name='conv3')
-    l3_2 = BatchNorm(input_size=[nbatch, 5, 5, 64], name='conv3_bn')
-    l3_3 = Relu()
+    l3_1 = Convolution(input_sizes=[nbatch, 5, 5, 64], filter_sizes=[3, 3, 64, 64], strides=[1,1,1,1], padding="SAME", name='conv3')
+    l3_2 = Relu()
 
     l4 = ConvToFullyConnected(input_shape=[5, 5, 64])
 
-    l5_1 = FullyConnected(input_shape=5*5*64, size=512, init='sqrt_fan_in', name='fc1')
-    l5_2 = BatchNorm(input_size=[nbatch, 512], name='fc1_bn')
-    l5_3 = Relu()
+    l5_1 = FullyConnected(input_shape=5*5*64, size=512, name='fc1')
+    l5_2 = Relu()
 
-    l6 = FullyConnected(input_shape=512, size=2, init='sqrt_fan_in', name='fc2')
+    l6 = FullyConnected(input_shape=512, size=2, name='fc2')
 
-    model = Model(layers=[l1_1, l1_2, l1_3, l1_4, \
-                          l2_1, l2_2, l2_3,       \
-                          l3_1, l3_2, l3_3,       \
-                          l4,                     \
-                          l5_1, l5_3,             \
-                          # l5_1, l5_2, l5_3,       \
-                          l6,                     \
+    model = Model(layers=[l1_1, l1_2, l1_3, \
+                          l2_1, l2_2,       \
+                          l3_1, l3_2,       \
+                          l4,               \
+                          l5_1, l5_2,       \
+                          l6,               \
                           ])
                           
     return model

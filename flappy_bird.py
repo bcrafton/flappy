@@ -30,8 +30,6 @@ import random
 from lib.PPOModel import PPOModel
 
 total_episodes = int(1e4)
-epsilon_init = 0.1
-epsilon_decay = 2. * epsilon_init / (1.0 * total_episodes * (args.mini_batch_size / args.batch_size))
 
 ####################################
 

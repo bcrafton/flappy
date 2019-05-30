@@ -12,7 +12,7 @@ from lib.conv_utils import conv_input_length
 
 class Convolution(Layer):
 
-    def __init__(self, input_sizes, filter_sizes, init, strides, padding, alpha=0., activation=None, bias=0., name=None, load=None, train=True):
+    def __init__(self, input_sizes, filter_sizes, strides, padding, init=None, alpha=0., activation=None, bias=0., name=None, load=None, train=True):
         self.input_sizes = input_sizes
         self.filter_sizes = filter_sizes
         self.batch_size, self.h, self.w, self.fin = self.input_sizes
@@ -41,8 +41,12 @@ class Convolution(Layer):
             elif init == "alexnet":
                 filters = np.random.normal(loc=0.0, scale=0.01, size=self.filter_sizes)
             else:
-                # glorot
-                assert(False)
+                # https://www.tensorflow.org/api_docs/python/tf/glorot_uniform_initializer
+                # can verify we did this right ...
+                fan_in = self.fh * self.fw * self.fin
+                fan_out = self.fout
+                lim = np.sqrt(6. / (fan_in + fan_out))
+                filters = np.random.uniform(low=-lim, high=lim, size=self.filter_sizes)
                 
         self.filters = tf.Variable(filters, dtype=tf.float32)
         self.bias = tf.Variable(bias, dtype=tf.float32)

@@ -21,7 +21,8 @@ class PPOModel:
         self.sess = sess
         self.nbatch = nbatch
         self.nclass = nclass
-        self.bias = tf.Variable(np.zeros(shape=(self.nbatch, self.nclass)), dtype=tf.float32)
+        self.actions_bias = tf.Variable(np.zeros(shape=(self.nbatch, self.nclass)), dtype=tf.float32)
+        self.values_bias = tf.Variable(np.zeros(shape=(self.nbatch)), dtype=tf.float32)
         self.epsilon = epsilon
         self.decay_max = decay_max
 
@@ -30,14 +31,16 @@ class PPOModel:
         self.rewards = tf.placeholder("float", [None]) 
         self.advantages = tf.placeholder("float", [None])
         
-        self.model1 = create_model(nbatch)
-        self.model2 = create_model(nbatch)
+        self.actions_model1, self.values_model1 = create_model(nbatch)
+        self.actions_model2, self.values_model2 = create_model(nbatch)
         
-        self.predict_op1 = self.model1.predict(self.states)
-        self.predict_op2 = self.model2.predict(self.states)
-        
-        self.pi1 = tf.distributions.Categorical(logits=self.predict_op1)
-        self.pi2 = tf.distributions.Categorical(logits=self.predict_op2)
+        self.actions_pred1 = self.actions_model1.predict(self.states)
+        self.actions_pred2 = self.actions_model2.predict(self.states)
+        self.values_pred1 = self.values_model1.predict(self.states)
+        self.values_pred2 = self.values_model2.predict(self.states)
+
+        self.pi1 = tf.distributions.Categorical(logits=self.actions_pred1)
+        self.pi2 = tf.distributions.Categorical(logits=self.actions_pred2)
         
         self.opt = tf.train.AdamOptimizer(learning_rate=2.5e-4, beta1=0.9, beta2=0.999, epsilon=1.)
         self.train_op = self.opt.apply_gradients(grads_and_vars=self.gvs(self.states, self.actions, self.rewards, self.advantages))
@@ -62,9 +65,9 @@ class PPOModel:
 
     def predict(self, state, stochastic=True):
         if stochastic:
-            action, value = self.sess.run([self.sample_action_op, self.predict_op1], {self.states: [state]})
+            action, value = self.sess.run([self.sample_action_op, self.values_pred1], {self.states: [state]})
         else:
-            action, value = self.sess.run([self.eval_action, self.predict_op1], {self.states: [state]})
+            action, value = self.sess.run([self.eval_action, self.values_pred1], {self.states: [state]})
 
         value = value[0]
         action_idx = action[0]
@@ -78,12 +81,13 @@ class PPOModel:
     
         ############
     
-        [pred1, forward1] = self.model1.forward(states)
-        [pred2, forward2] = self.model2.forward(states)
-        pred1 = pred1 + self.bias
+        [actions1, actions_forward1] = self.actions_model1.forward(states)
+        [actions2, actions_forward2] = self.actions_model2.forward(states)
+        actions1 = actions1 + self.actions_bias
 
-        values1 = tf.reduce_max(pred1, axis=1)
-        values2 = tf.reduce_max(pred2, axis=1)
+        [values1, values_forward1] = self.values_model1.forward(states)
+        [values2, values_forward2] = self.values_model2.forward(states)
+        values1 = values1 + self.values_bias
 
         ############
         # DOES FORWARD = SELF.PI ? 
@@ -106,10 +110,24 @@ class PPOModel:
         value_loss = 0.5 * tf.reduce_mean(tf.maximum(value_loss_1, value_loss_2))
 
         loss = policy_loss + 0.01 * entropy_loss + 1. * value_loss
-        grads = tf.gradients(loss, [self.bias])
-        grad = grads[0] / self.nbatch
+        grads = tf.gradients(loss, [self.actions_bias, self.values_bias])
+        [actions_grad, values_grad] = grads
         
-        grads_and_vars = self.model1.backward(states, forward1, grad)
+        # print (len(grads))
+        # print (np.shape(actions_grad), np.shape(values_grad))
+        # print (actions_grad)
+        # okay so problem here is that action grad is actually nothing.
+        #   because actions1 is not used. 
+
+        actions_grad = actions_grad / self.nbatch
+        values_grad = values_grad / self.nbatch
+        
+        action_gvs = self.actions_model1.backward(states, actions_forward1, actions_grad)
+        values_gvs = self.values_model1.backward(states, values_forward1, values_grad)
+        grads_and_vars = []
+        grads_and_vars.extend(action_gvs)
+        grads_and_vars.extend(values_gvs)
+        
         return grads_and_vars
 
     def train(self, states, actions, rewards, advantages):
@@ -133,17 +151,26 @@ def create_model(nbatch):
     l5_1 = FullyConnected(input_shape=5*5*64, size=512, name='fc1')
     l5_2 = Relu()
 
-    l6 = FullyConnected(input_shape=512, size=2, name='fc2')
+    actions = FullyConnected(input_shape=512, size=2, name='action')
+    values = FullyConnected(input_shape=512, size=1, name='values')
 
-    model = Model(layers=[l1_1, l1_2, l1_3, \
-                          l2_1, l2_2,       \
-                          l3_1, l3_2,       \
-                          l4,               \
-                          l5_1, l5_2,       \
-                          l6,               \
-                          ])
-                          
-    return model
+    actions_model = Model(layers=[l1_1, l1_2, l1_3, \
+                                  l2_1, l2_2,       \
+                                  l3_1, l3_2,       \
+                                  l4,               \
+                                  l5_1, l5_2,       \
+                                  actions           \
+                                  ])
+
+    values_model = Model(layers=[l1_1, l1_2, l1_3, \
+                                 l2_1, l2_2,       \
+                                 l3_1, l3_2,       \
+                                 l4,               \
+                                 l5_1, l5_2,       \
+                                 values            \
+                                 ])
+
+    return actions_model, values_model
 
 ####################################
         

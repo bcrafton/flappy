@@ -22,12 +22,16 @@ class Orthogonal(object):
 
     def __call__(self, shape, dtype=None, partition_info=None):
         shape = tuple(shape)
+        
         if len(shape) == 2:
             flat_shape = shape
-        elif len(shape) == 4:  # assumes NHWC
+            
+        elif len(shape) == 4:
             flat_shape = (np.prod(shape[:-1]), shape[-1])
+        
         else:
             raise NotImplementedError
+            
         a = np.random.normal(0.0, 1.0, flat_shape)
         u, _, v = np.linalg.svd(a, full_matrices=False)
         q = u if u.shape == flat_shape else v  # pick the one with the correct shape
@@ -35,9 +39,7 @@ class Orthogonal(object):
         return (self.scale * q[:shape[0], :shape[1]]).astype(np.float32)
 
     def get_config(self):
-        return {
-            'scale': self.scale
-        }
+        return {'scale': self.scale}
 
 #####
 
@@ -66,6 +68,7 @@ class Game(object):
 
             if lives < self.lives:
                 done = True
+                
             self.lives = lives
 
             if done:
@@ -104,6 +107,8 @@ class Game(object):
         obs = cv2.resize(obs, (84, 84), interpolation=cv2.INTER_AREA)
         return obs[:, :, None]  # Shape (84, 84, 1)
 
+#####
+
 def worker_process(remote: multiprocessing.connection.Connection, seed: int):
     game = Game(seed)
 
@@ -134,18 +139,16 @@ class Worker(object):
 
 class Model(object):
     def __init__(self, *, reuse: bool, batch_size: int):
-
-    self.obs = tf.placeholder(shape=(batch_size, 84, 84, 4), name="obs", dtype=np.uint8)
-    obs_float = tf.to_float(self.obs, name="obs_float")
-    
-    with tf.variable_scope("model", reuse=reuse):
-        self.h = Model._cnn(obs_float)
-        self.pi_logits = Model._create_policy_network(self.h, 4)
-        self.value = Model._create_value_network(self.h)
-        self.params = tf.trainable_variables()
-        self.action = Model._sample(self.pi_logits)
-        self.neg_log_pi = self.neg_log_prob(self.action, "neg_log_pi_old")
-        self.policy_entropy = Model._get_policy_entropy(self.pi_logits)
+        self.obs = tf.placeholder(shape=(batch_size, 84, 84, 4), name="obs", dtype=np.uint8)
+        obs_float = tf.to_float(self.obs, name="obs_float")
+        with tf.variable_scope("model", reuse=reuse):
+            self.h = Model._cnn(obs_float)
+            self.pi_logits = Model._create_policy_network(self.h, 4)
+            self.value = Model._create_value_network(self.h)
+            self.params = tf.trainable_variables()
+            self.action = Model._sample(self.pi_logits)
+            self.neg_log_pi = self.neg_log_prob(self.action, "neg_log_pi_old")
+            self.policy_entropy = Model._get_policy_entropy(self.pi_logits)
 
     @staticmethod
     def _get_policy_entropy(logits: tf.Tensor):
@@ -166,68 +169,29 @@ class Model(object):
 
     @staticmethod
     def _cnn(unscaled_images: tf.Tensor):
-
         scaled_images = tf.cast(unscaled_images, tf.float32) / 255.
-
-        h1 = tf.layers.conv2d(scaled_images,
-                              name="conv1",
-                              filters=32,
-                              kernel_size=8,
-                              kernel_initializer=Orthogonal(scale=np.sqrt(2)),
-                              strides=4,
-                              padding="valid",
-                              activation=tf.nn.relu)
-
-        h2 = tf.layers.conv2d(h1,
-                              name="conv2",
-                              filters=64,
-                              kernel_size=4,
-                              kernel_initializer=Orthogonal(scale=np.sqrt(2)),
-                              strides=2,
-                              padding="valid",
-                              activation=tf.nn.relu)
-
-        h3 = tf.layers.conv2d(h2,
-                              name="conv3",
-                              filters=64,
-                              kernel_size=3,
-                              kernel_initializer=Orthogonal(scale=np.sqrt(2)),
-                              strides=1,
-                              padding="valid",
-                              activation=tf.nn.relu)
-
+        h1 = tf.layers.conv2d(scaled_images, name="conv1", filters=32, kernel_size=8, kernel_initializer=Orthogonal(scale=np.sqrt(2)), strides=4, padding="valid", activation=tf.nn.relu)
+        h2 = tf.layers.conv2d(h1, name="conv2", filters=64, kernel_size=4, kernel_initializer=Orthogonal(scale=np.sqrt(2)), strides=2, padding="valid", activation=tf.nn.relu)
+        h3 = tf.layers.conv2d(h2, name="conv3", filters=64, kernel_size=3, kernel_initializer=Orthogonal(scale=np.sqrt(2)), strides=1, padding="valid", activation=tf.nn.relu)
         nh = np.prod([v.value for v in h3.get_shape()[1:]])
         flat = tf.reshape(h3, [-1, nh])
-        
-        h = tf.layers.dense(flat, 512,
-                            activation=tf.nn.relu,
-                            kernel_initializer=Orthogonal(scale=np.sqrt(2)),
-                            name="hidden")
-
+        h = tf.layers.dense(flat, 512, activation=tf.nn.relu, kernel_initializer=Orthogonal(scale=np.sqrt(2)), name="hidden")
         return h
 
     @staticmethod
     def _create_policy_network(h: tf.Tensor, n: int) -> tf.Tensor:
-        return tf.layers.dense(h, n,
-                               activation=None,
-                               kernel_initializer=Orthogonal(scale=0.01),
-                               name="logits")
+        return tf.layers.dense(h, n, activation=None, kernel_initializer=Orthogonal(scale=0.01), name="logits")
 
     @staticmethod
     def _create_value_network(h: tf.Tensor) -> tf.Tensor:
-        value = tf.layers.dense(h, 1,
-                                activation=None,
-                                kernel_initializer=Orthogonal(),
-                                name="value")
+        value = tf.layers.dense(h, 1, activation=None, kernel_initializer=Orthogonal(), name="value")
         return value[:, 0]
 
     def step(self, session: tf.Session, obs: np.ndarray) -> (tf.Tensor, tf.Tensor, tf.Tensor):
-        return session.run([self.action, self.value, self.neg_log_pi],
-                           feed_dict={self.obs: obs})
+        return session.run([self.action, self.value, self.neg_log_pi], feed_dict={self.obs: obs})
 
     def get_value(self, session: tf.Session, obs: np.ndarray) -> tf.Tensor:
-        return session.run(self.value,
-                           feed_dict={self.obs: obs})
+        return session.run(self.value, feed_dict={self.obs: obs})
 
 #####
 
@@ -263,11 +227,7 @@ class Trainer(object):
         self.approx_kl_divergence = .5 * tf.reduce_mean(tf.square(neg_log_pi - self.sampled_neg_log_pi))
         self.clip_fraction = tf.reduce_mean(tf.to_float(tf.greater(tf.abs(ratio - 1.0), self.clip_range)))
         
-        self.train_info_labels = ['policy_reward',
-                                  'value_loss',
-                                  'entropy_bonus',
-                                  'approx_kl_divergence',
-                                  'clip_fraction']
+        self.train_info_labels = ['policy_reward', 'value_loss', 'entropy_bonus', 'approx_kl_divergence', 'clip_fraction']
 
     def train(self, session: tf.Session, samples: Dict[str, np.ndarray], learning_rate: float, clip_range: float):
 
@@ -364,7 +324,6 @@ class Main(object):
             samples_flat[k] = v.reshape(v.shape[0] * v.shape[1], *v.shape[2:])
 
         return samples_flat, episode_infos
-
 
     def _calc_advantages(self, dones: np.ndarray, rewards: np.ndarray, values: np.ndarray) -> np.ndarray:
         advantages = np.zeros((self.n_workers, self.worker_steps), dtype=np.float32)

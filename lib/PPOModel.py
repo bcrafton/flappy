@@ -77,12 +77,17 @@ class PPOModel:
         z = tf.reduce_sum(exp_a, axis=-1, keepdims=True)
         p = exp_a / z
         return tf.reduce_sum(p * (tf.log(z) - a), axis=-1)
-
+    '''
+    '''
+    def neg_log_prob(self, action: tf.Tensor, name: str) -> tf.Tensor:
+        one_hot_actions = tf.one_hot(action, 4)
+        return tf.nn.softmax_cross_entropy_with_logits_v2(logits=self.pi_logits, labels=one_hot_actions, dim=-1, name=name)
+    '''
     def neg_log_prob(self, action):
-        one_hot_actions = tf.one_hot(action, 2)
-        return tf.nn.softmax_cross_entropy_with_logits_v2(logits=self.pi_logits, labels=one_hot_actions, dim=-1)
-
-    def sample(logits: tf.Tensor):
+        # one_hot_actions = tf.one_hot(action, 2)
+        return tf.nn.softmax_cross_entropy_with_logits_v2(logits=self.actions1 + self.actions_bias, labels=action, dim=-1)
+    '''
+    def sample(logits):
         uniform = tf.random_uniform(tf.shape(logits))
         return tf.argmax(logits - tf.log(-tf.log(uniform)), axis=-1)
     '''
@@ -110,7 +115,8 @@ class PPOModel:
         global_step = tf.train.get_or_create_global_step()
         epsilon_decay = tf.train.polynomial_decay(self.epsilon, global_step, self.decay_max, 0.001)
 
-        ratio = tf.exp(self.pi1.log_prob(actions) - self.pi2.log_prob(actions))
+        # ratio = tf.exp(self.pi1.log_prob(actions) - self.pi2.log_prob(actions))
+        ratio = tf.exp(self.neg_log_prob(actions) - self.neg_log_prob(actions))
         ratio = tf.clip_by_value(ratio, 0, 10)
         surr1 = advantages * ratio
         surr2 = advantages * tf.clip_by_value(ratio, 1 - epsilon_decay, 1 + epsilon_decay)

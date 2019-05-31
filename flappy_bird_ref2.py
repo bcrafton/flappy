@@ -43,8 +43,6 @@ class Orthogonal(object):
 
 class Game(object):
 
-
-
     def __init__(self, seed: int):
         self.env = gym.make('BreakoutNoFrameskip-v4')
         self.env.seed(seed)
@@ -166,8 +164,6 @@ class Model(object):
         uniform = tf.random_uniform(tf.shape(logits))
         return tf.argmax(logits - tf.log(-tf.log(uniform)), axis=-1, name="action")
 
-
-
     @staticmethod
     def _cnn(unscaled_images: tf.Tensor):
 
@@ -273,8 +269,6 @@ class Trainer(object):
                                   'approx_kl_divergence',
                                   'clip_fraction']
 
-
-
     def train(self, session: tf.Session, samples: Dict[str, np.ndarray], learning_rate: float, clip_range: float):
 
         feed_dict = {self.sampled_obs: samples['obs'],
@@ -299,10 +293,7 @@ class Trainer(object):
     def _normalize(adv: np.ndarray):
         return (adv - adv.mean()) / (adv.std() + 1e-8)
 
-
 ############################
-
-
 
 class Main(object):
     def __init__(self):
@@ -322,8 +313,10 @@ class Main(object):
         Main._init_tf_session()
         self.workers = [Worker(47 + i) for i in range(self.n_workers)]
         self.obs = np.zeros((self.n_workers, 84, 84, 4), dtype=np.uint8)
+        
         for worker in self.workers:
             worker.child.send(("reset", None))
+        
         for i, worker in enumerate(self.workers):
             self.obs[i] = worker.child.recv()
 
@@ -374,8 +367,6 @@ class Main(object):
 
 
     def _calc_advantages(self, dones: np.ndarray, rewards: np.ndarray, values: np.ndarray) -> np.ndarray:
-
-
         advantages = np.zeros((self.n_workers, self.worker_steps), dtype=np.float32)
         last_advantage = 0
 
@@ -391,8 +382,6 @@ class Main(object):
 
         return advantages
 
-
-
     def train(self, samples: Dict[str, np.ndarray], learning_rate: float, clip_range: float):
         indexes = np.arange(self.batch_size)
         train_info = []
@@ -407,16 +396,10 @@ class Main(object):
                 for k, v in samples.items():
                     mini_batch[k] = v[mini_batch_indexes]
 
-                res = self.trainer.train(session=self.session,
-                                         learning_rate=learning_rate,
-                                         clip_range=clip_range,
-                                         samples=mini_batch)
-
+                res = self.trainer.train(session=self.session, learning_rate=learning_rate, clip_range=clip_range, samples=mini_batch)
                 train_info.append(res)
                 
         return np.mean(train_info, axis=0)
-
-
 
     def run_training_loop(self):
         writer = self._create_summary_writer()
@@ -442,27 +425,20 @@ class Main(object):
                     best_obs_frame = info['obs']
 
             reward_mean, length_mean = Main._get_mean_episode_info(episode_info)
-            self._write_summary(writer, best_obs_frame, update, fps,
-                                reward_mean, length_mean, train_info,
-                                clip_range, learning_rate)
+            self._write_summary(writer, best_obs_frame, update, fps, reward_mean, length_mean, train_info, clip_range, learning_rate)
 
     @staticmethod
     def _init_tf_session():
-        config = tf.ConfigProto(allow_soft_placement=True,
-                                log_device_placement=True)
-
+        config = tf.ConfigProto(allow_soft_placement=True, log_device_placement=True)
         config.gpu_options.allow_growth = True
         tf.Session(config=config).__enter__()
         np.random.seed(7)
         tf.set_random_seed(7)
 
-
-
     @staticmethod
     def _get_mean_episode_info(episode_info):
         if len(episode_info) > 0:
-            return (np.mean([info["reward"] for info in episode_info]),
-                    np.mean([info["length"] for info in episode_info]))
+            return (np.mean([info["reward"] for info in episode_info]), np.mean([info["length"] for info in episode_info]))
         else:
             return np.nan, np.nan
 
@@ -492,19 +468,17 @@ class Main(object):
             observation_png = io.BytesIO()
             pyplot.imsave(observation_png, sample_observation, format='png', cmap='gray')
 
-            observation_png = tf.Summary.Image(encoded_image_string=observation_png.getvalue(),
-                                               height=84,
-                                               width=84)
+            observation_png = tf.Summary.Image(encoded_image_string=observation_png.getvalue(), height=84, width=84)
             summary.value.add(tag="observation", image=observation_png)
 
         summary.value.add(tag="fps", simple_value=fps)
         for label, value in zip(self.trainer.train_info_labels, train_info):
             summary.value.add(tag=label, simple_value=value)
+            
         summary.value.add(tag="reward_mean", simple_value=reward_mean)
         summary.value.add(tag="length_mean", simple_value=length_mean)
         summary.value.add(tag="clip_range", simple_value=clip_range)
         summary.value.add(tag="learning_rate", simple_value=learning_rate)
-
         writer.add_summary(summary, global_step=update)
 
     def destroy(self):

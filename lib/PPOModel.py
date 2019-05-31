@@ -27,7 +27,7 @@ class PPOModel:
         self.decay_max = decay_max
 
         self.states = tf.placeholder("float", [None, 80, 80, 4])
-        self.actions = tf.placeholder("float", [None, 2])
+        self.actions = tf.placeholder("float", [None, 4])
         self.rewards = tf.placeholder("float", [None]) 
         self.advantages = tf.placeholder("float", [None])
         
@@ -105,7 +105,7 @@ class PPOModel:
         action_idx = np.squeeze(action_idx)
         value = np.squeeze(value)
         
-        action = np.zeros(shape=2)
+        action = np.zeros(shape=4)
         action[action_idx] = 1
         
         return value, action
@@ -117,9 +117,7 @@ class PPOModel:
         global_step = tf.train.get_or_create_global_step()
         epsilon_decay = tf.train.polynomial_decay(self.epsilon, global_step, self.decay_max, 0.001)
 
-        # ratio = tf.exp(self.pi1.log_prob(actions) - self.pi2.log_prob(actions))
-        ratio = tf.exp(self.neg_log_prob(self.actions1_train, actions) - self.neg_log_prob(self.actions2, actions))
-        
+        ratio = tf.exp(self.neg_log_prob(self.actions1_train, actions) - self.neg_log_prob(self.actions2, actions))        
         ratio = tf.clip_by_value(ratio, 0, 10)
         surr1 = advantages * ratio
         surr2 = advantages * tf.clip_by_value(ratio, 1 - epsilon_decay, 1 + epsilon_decay)
@@ -139,9 +137,6 @@ class PPOModel:
         actions_grad = actions_grad / self.nbatch
         values_grad = values_grad / self.nbatch
         values_grad = tf.reshape(values_grad, (self.nbatch, 1))
-        
-        # print (actions_grad)
-        # print (values_grad)
         
         action_gvs = self.actions_model1.backward(states, self.actions1_forward, actions_grad)
         values_gvs = self.values_model1.backward(states, self.values1_forward, values_grad)
@@ -172,7 +167,7 @@ def create_model(nbatch):
     l5_1 = FullyConnected(input_shape=5*5*64, size=512, name='fc1')
     l5_2 = Relu()
 
-    actions = FullyConnected(input_shape=512, size=2, name='action')
+    actions = FullyConnected(input_shape=512, size=4, name='action')
     values = FullyConnected(input_shape=512, size=1, name='values')
 
     actions_model = Model(layers=[l1_1, l1_2, l1_3, \

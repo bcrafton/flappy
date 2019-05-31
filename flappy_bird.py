@@ -25,10 +25,16 @@ import gym
 import gym_ple
 from collections import deque
 import random
-# import matplotlib.pyplot as plt
 
 from lib.PPOModel import PPOModel
 
+action_set = [
+    [0, 0],
+    [0, 1],
+    [1, 0],
+    [1, 1],
+]
+action_space = len(action_set)
 total_episodes = int(1e4)
 
 ####################################
@@ -68,7 +74,8 @@ class FlappyBirdEnv:
         self.state = deque([frame] * 4, maxlen=4)
         
         return np.stack(self.state, axis=2)
-
+    
+    '''
     def step(self, action):
         next_frame, reward, done, _ = self.env.step(action)
         reward = self._reward_shaping(reward)        
@@ -79,6 +86,33 @@ class FlappyBirdEnv:
         
         self.state.append(next_frame)
         return np.stack(self.state, axis=2), reward, done
+    '''
+    '''
+    def step(self, action):
+        cumulated_reward = 0.0
+        for a in action_set[action]:
+            next_state, reward, done, _ = self.env.step(a)
+            cumulated_reward += self._reward_shaping(reward)
+            self.total_step += 1
+            if done:
+                break
+            self.total_reward += reward
+        return self._process(next_state), cumulated_reward, done
+    '''
+    def step(self, action):
+        cumulated_reward = 0.0
+        for a in action_set[action]:
+            next_frame, reward, done, _ = self.env.step(a)
+            reward = self._reward_shaping(reward)
+            cumulated_reward += reward
+            self.total_step += 1
+            self.total_reward += reward
+            if done:
+                break
+        
+        next_frame = self._process(next_frame)
+        self.state.append(next_frame)
+        return np.stack(self.state, axis=2), cumulated_reward, done
 
     def _reward_shaping(self, reward):
         if  reward > 0.0:
@@ -101,7 +135,7 @@ sess = tf.InteractiveSession()
 
 ####################################
 
-model = PPOModel(sess=sess, nbatch=64, nclass=2, epsilon=0.1, decay_max=8000)
+model = PPOModel(sess=sess, nbatch=64, nclass=4, epsilon=0.1, decay_max=8000)
 
 replay_buffer = []
 env = FlappyBirdEnv()

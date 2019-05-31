@@ -150,6 +150,8 @@ for e in range(total_episodes):
         
         if done:
             reward_list.append(round(env.total_reward, 2))
+            #sym = (0 if (env.total_reward < 0.) else 1)
+            #reward_list.append(sym)
             state = env.reset()
 
     next_value, next_action = model.predict(next_state)

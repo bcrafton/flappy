@@ -109,10 +109,7 @@ class PPOModel:
         entropy_bonus = tf.reduce_mean(self.policy_entropy)
 
         clipped_value = tf.add(old_values, tf.clip_by_value(self.values_train - old_values, -epsilon_decay, epsilon_decay))
-        p1 = tf.square(self.values_train - rewards)
-        p2 = tf.square(clipped_value - rewards)
-        vf_loss = tf.multiply(0.5, tf.reduce_mean(tf.maximum(p1, p2)), name="vf_loss")
-        # vf_loss = tf.multiply(0.5, tf.reduce_mean(tf.maximum(tf.square(self.values_train - rewards), tf.square(clipped_value - rewards))), name="vf_loss")
+        vf_loss = tf.multiply(0.5, tf.reduce_mean(tf.maximum(tf.square(self.values_train - rewards), tf.square(clipped_value - rewards))), name="vf_loss")
         loss = -(policy_reward - 0.5 * vf_loss + 0.01 * entropy_bonus)
 
         ############
@@ -123,9 +120,6 @@ class PPOModel:
         logits_grad = logits_grad / self.nbatch
         values_grad = values_grad / self.nbatch
         values_grad = tf.reshape(values_grad, (self.nbatch, 1))
-        
-        # print (logits_grad)
-        # print (values_grad)
         
         logits_gvs = self.actions_model.backward(states, self.logits_forward, logits_grad)
         values_gvs = self.values_model.backward(states, self.values_forward, values_grad)

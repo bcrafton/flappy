@@ -134,7 +134,7 @@ for e in range(total_episodes):
     replay_buffer = []
     for _ in range(args.mini_batch_size):
 
-        value, action = model.predict(state)
+        value, action, nlps = model.predict(state)
         action_idx = np.argmax(action)
         
         ################################
@@ -142,10 +142,10 @@ for e in range(total_episodes):
         next_state, reward, done = env.step(action_idx)
 
         if done and env.total_step >= 10000:
-            next_value, next_action = model.predict(next_state)
+            next_value, next_action, next_nlps = model.predict(next_state)
             reward += 0.99 * next_value
         
-        replay_buffer.append({'s':state, 'v': value, 'a':action, 'r':reward, 'd':done})
+        replay_buffer.append({'s':state, 'v': value, 'a':action, 'r':reward, 'd':done, 'n':nlps})
         state = next_state
         
         if done:
@@ -154,7 +154,7 @@ for e in range(total_episodes):
             #reward_list.append(sym)
             state = env.reset()
 
-    next_value, next_action = model.predict(next_state)
+    next_value, next_action, next_nlps = model.predict(next_state)
 
     rets, advs = returns_advantages(replay_buffer, next_value)
 
@@ -165,12 +165,14 @@ for e in range(total_episodes):
     advantages = advs
     advantages = (advantages - np.mean(advantages)) / (np.std(advantages) + 1e-8)
     actions = [d['a'] for d in replay_buffer]
+    values = [d['v'] for d in replay_buffer]
+    nlps = [d['n'] for d in replay_buffer]
     
     for _ in range(args.epochs):
         for batch in range(0, args.mini_batch_size, args.batch_size):
             s = batch
             e = batch + args.batch_size
-            model.train(states[s:e], actions[s:e], rewards[s:e], advantages[s:e])
+            model.train(states[s:e], rewards[s:e], advantages[s:e], actions[s:e], values[s:e], nlps[s:e])
 
     model.set_weights()
 

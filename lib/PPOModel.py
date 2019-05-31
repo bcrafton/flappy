@@ -61,7 +61,7 @@ class PPOModel:
         
         global_step = tf.train.get_or_create_global_step()
         self.global_step_op = global_step.assign_add(1)
-
+        
     def get_weights(self):
         assert(False)
 
@@ -85,9 +85,9 @@ class PPOModel:
         one_hot_actions = tf.one_hot(action, 4)
         return tf.nn.softmax_cross_entropy_with_logits_v2(logits=self.pi_logits, labels=one_hot_actions, dim=-1, name=name)
     '''
-    def neg_log_prob(self, action):
+    def neg_log_prob(self, logits, action):
         # one_hot_actions = tf.one_hot(action, 2)
-        return tf.nn.softmax_cross_entropy_with_logits_v2(logits=self.actions1_train, labels=action, dim=-1)
+        return tf.nn.softmax_cross_entropy_with_logits_v2(logits=logits, labels=action, dim=-1)
     '''
     def sample(logits):
         uniform = tf.random_uniform(tf.shape(logits))
@@ -118,7 +118,7 @@ class PPOModel:
         epsilon_decay = tf.train.polynomial_decay(self.epsilon, global_step, self.decay_max, 0.001)
 
         # ratio = tf.exp(self.pi1.log_prob(actions) - self.pi2.log_prob(actions))
-        ratio = tf.exp(self.neg_log_prob(actions) - self.neg_log_prob(actions))
+        ratio = tf.exp(self.neg_log_prob(self.actions1_train, actions) - self.neg_log_prob(self.actions2, actions))
         
         ratio = tf.clip_by_value(ratio, 0, 10)
         surr1 = advantages * ratio

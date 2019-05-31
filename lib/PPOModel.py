@@ -90,12 +90,13 @@ class PPOModel:
 
     def predict(self, state, stochastic=True):
         if stochastic:
-            action, value = self.sess.run([self.sample_action_op, self.values1], {self.states:[state]})
+            action_idx, value = self.sess.run([self.sample_action_op, self.values1], {self.states:[state]})
         else:
-            action, value = self.sess.run([self.eval_action, self.values1], {self.states:[state]})
+            action_idx, value = self.sess.run([self.eval_action, self.values1], {self.states:[state]})
 
-        value = value[0]
-        action_idx = action[0]
+        # reduce both to scalars.
+        action_idx = np.squeeze(action_idx)
+        value = np.squeeze(value)
         
         action = np.zeros(shape=2)
         action[action_idx] = 1

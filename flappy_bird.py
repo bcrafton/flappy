@@ -187,6 +187,7 @@ for e in range(total_episodes):
     states = [d['s'] for d in replay_buffer]
     rewards = rets
     advantages = advs
+    advantages = (advantages - np.mean(advantages)) / (np.std(advantages) + 1e-8)
     actions = [d['a'] for d in replay_buffer]
     
     for _ in range(args.epochs):

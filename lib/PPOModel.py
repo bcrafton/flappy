@@ -38,14 +38,16 @@ class PPOModel:
         
         [self.actions1, self.actions1_forward] = self.actions_model1.forward(self.states)
         [self.actions2, self.actions2_forward] = self.actions_model2.forward(self.states)
+        self.actions1_train = self.actions1 + self.actions_bias
 
         [self.values1, self.values1_forward] = self.values_model1.forward(self.states)
         [self.values2, self.values2_forward] = self.values_model2.forward(self.states)
+        self.values1_train = self.values1 + self.values_bias
         
         ##############################################
 
         self.pi1 = tf.distributions.Categorical(logits=self.actions1)
-        self.pi1_train = tf.distributions.Categorical(logits=self.actions1 + self.actions_bias)
+        self.pi1_train = tf.distributions.Categorical(logits=self.actions1_train)
         self.pi2 = tf.distributions.Categorical(logits=self.actions2)
         
         self.opt = tf.train.AdamOptimizer(learning_rate=2.5e-4, beta1=0.9, beta2=0.999, epsilon=1.)
@@ -85,7 +87,7 @@ class PPOModel:
     '''
     def neg_log_prob(self, action):
         # one_hot_actions = tf.one_hot(action, 2)
-        return tf.nn.softmax_cross_entropy_with_logits_v2(logits=self.actions1 + self.actions_bias, labels=action, dim=-1)
+        return tf.nn.softmax_cross_entropy_with_logits_v2(logits=self.actions1_train, labels=action, dim=-1)
     '''
     def sample(logits):
         uniform = tf.random_uniform(tf.shape(logits))
@@ -117,6 +119,7 @@ class PPOModel:
 
         # ratio = tf.exp(self.pi1.log_prob(actions) - self.pi2.log_prob(actions))
         ratio = tf.exp(self.neg_log_prob(actions) - self.neg_log_prob(actions))
+        
         ratio = tf.clip_by_value(ratio, 0, 10)
         surr1 = advantages * ratio
         surr2 = advantages * tf.clip_by_value(ratio, 1 - epsilon_decay, 1 + epsilon_decay)
@@ -124,9 +127,9 @@ class PPOModel:
 
         entropy_loss = -tf.reduce_mean(self.pi1_train.entropy())
 
-        clipped_value_estimate = self.values2 + tf.clip_by_value(self.values1 - self.values2, -epsilon_decay, epsilon_decay)
+        clipped_value_estimate = self.values2 + tf.clip_by_value(self.values1_train - self.values2, -epsilon_decay, epsilon_decay)
         value_loss_1 = tf.squared_difference(clipped_value_estimate, rewards)
-        value_loss_2 = tf.squared_difference(self.values1, rewards)
+        value_loss_2 = tf.squared_difference(self.values1_train, rewards)
         value_loss = 0.5 * tf.reduce_mean(tf.maximum(value_loss_1, value_loss_2))
 
         loss = policy_loss + 0.01 * entropy_loss + 1. * value_loss
@@ -134,13 +137,17 @@ class PPOModel:
         [actions_grad, values_grad] = grads
         
         actions_grad = actions_grad / self.nbatch
-        # values_grad = values_grad / self.nbatch
+        values_grad = values_grad / self.nbatch
+        values_grad = tf.reshape(values_grad, (self.nbatch, 1))
+        
+        # print (actions_grad)
+        # print (values_grad)
         
         action_gvs = self.actions_model1.backward(states, self.actions1_forward, actions_grad)
-        # values_gvs = self.values_model1.backward(states, self.values1_forward, values_grad)
+        values_gvs = self.values_model1.backward(states, self.values1_forward, values_grad)
         grads_and_vars = []
         grads_and_vars.extend(action_gvs)
-        # grads_and_vars.extend(values_gvs)
+        grads_and_vars.extend(values_gvs)
         
         return grads_and_vars
 

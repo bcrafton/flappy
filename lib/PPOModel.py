@@ -34,20 +34,26 @@ class PPOModel:
         self.actions_model1, self.values_model1 = create_model(nbatch)
         self.actions_model2, self.values_model2 = create_model(nbatch)
         
-        self.actions_pred1 = self.actions_model1.predict(self.states)
-        self.actions_pred2 = self.actions_model2.predict(self.states)
-        self.values_pred1 = self.values_model1.predict(self.states)
-        self.values_pred2 = self.values_model2.predict(self.states)
+        ##############################################
+        
+        [self.actions1, self.actions1_forward] = self.actions_model1.forward(self.states)
+        [self.actions2, self.actions2_forward] = self.actions_model2.forward(self.states)
 
-        self.pi1 = tf.distributions.Categorical(logits=self.actions_pred1)
-        self.pi2 = tf.distributions.Categorical(logits=self.actions_pred2)
+        [self.values1, self.values1_forward] = self.values_model1.forward(self.states)
+        [self.values2, self.values2_forward] = self.values_model2.forward(self.states)
+        
+        ##############################################
+
+        self.pi1 = tf.distributions.Categorical(logits=self.actions1)
+        self.pi1_train = tf.distributions.Categorical(logits=self.actions1 + self.actions_bias)
+        self.pi2 = tf.distributions.Categorical(logits=self.actions2)
         
         self.opt = tf.train.AdamOptimizer(learning_rate=2.5e-4, beta1=0.9, beta2=0.999, epsilon=1.)
         self.train_op = self.opt.apply_gradients(grads_and_vars=self.gvs(self.states, self.actions, self.rewards, self.advantages))
         
-        self.get_weights_op = self.model1.get_weights()
-        self.set_weights_op = self.model2.set_weights(self.get_weights_op)
-
+        self.set_weights_actions = self.actions_model2.set_weights(self.actions_model1.get_weights())
+        self.set_weights_values = self.values_model2.set_weights(self.values_model1.get_weights())
+        
         self.sample_action_op = tf.squeeze(self.pi1.sample(1), axis=0, name='sample_action')
         self.eval_action = self.pi1.mode()
         
@@ -55,19 +61,38 @@ class PPOModel:
         self.global_step_op = global_step.assign_add(1)
 
     def get_weights(self):
-        return self.get_weights_op.run(feed_dict={})
+        assert(False)
 
     def set_weights(self):
-        self.sess.run(self.set_weights_op, feed_dict={})
+        self.sess.run([self.set_weights_actions, self.set_weights_values], feed_dict={})
         self.sess.run(self.global_step_op, feed_dict={})
         
+    ####################################################################
+    # using other peoples code now.
+    # http://blog.varunajayasiri.com/ml/ppo.html
+    '''
+    def policy_entropy(logits):
+        a = logits - tf.reduce_max(logits, axis=-1, keepdims=True)
+        exp_a = tf.exp(a)
+        z = tf.reduce_sum(exp_a, axis=-1, keepdims=True)
+        p = exp_a / z
+        return tf.reduce_sum(p * (tf.log(z) - a), axis=-1)
+
+    def neg_log_prob(self, action):
+        one_hot_actions = tf.one_hot(action, 2)
+        return tf.nn.softmax_cross_entropy_with_logits_v2(logits=self.pi_logits, labels=one_hot_actions, dim=-1)
+
+    def sample(logits: tf.Tensor):
+        uniform = tf.random_uniform(tf.shape(logits))
+        return tf.argmax(logits - tf.log(-tf.log(uniform)), axis=-1)
+    '''
     ####################################################################
 
     def predict(self, state, stochastic=True):
         if stochastic:
-            action, value = self.sess.run([self.sample_action_op, self.values_pred1], {self.states: [state]})
+            action, value = self.sess.run([self.sample_action_op, self.values1], {self.states:[state]})
         else:
-            action, value = self.sess.run([self.eval_action, self.values_pred1], {self.states: [state]})
+            action, value = self.sess.run([self.eval_action, self.values1], {self.states:[state]})
 
         value = value[0]
         action_idx = action[0]
@@ -80,19 +105,7 @@ class PPOModel:
     def gvs(self, states, actions, rewards, advantages):
     
         ############
-    
-        [actions1, actions_forward1] = self.actions_model1.forward(states)
-        [actions2, actions_forward2] = self.actions_model2.forward(states)
-        actions1 = actions1 + self.actions_bias
 
-        [values1, values_forward1] = self.values_model1.forward(states)
-        [values2, values_forward2] = self.values_model2.forward(states)
-        values1 = values1 + self.values_bias
-
-        ############
-        # DOES FORWARD = SELF.PI ? 
-        # OR CATEGORICAL(FORWARD) = SELF.PI ? 
-        
         global_step = tf.train.get_or_create_global_step()
         epsilon_decay = tf.train.polynomial_decay(self.epsilon, global_step, self.decay_max, 0.001)
 
@@ -102,31 +115,25 @@ class PPOModel:
         surr2 = advantages * tf.clip_by_value(ratio, 1 - epsilon_decay, 1 + epsilon_decay)
         policy_loss = -tf.reduce_mean(tf.minimum(surr1, surr2))
 
-        entropy_loss = -tf.reduce_mean(self.pi1.entropy())
+        entropy_loss = -tf.reduce_mean(self.pi1_train.entropy())
 
-        clipped_value_estimate = values2 + tf.clip_by_value(values1 - values2, -epsilon_decay, epsilon_decay)
+        clipped_value_estimate = self.values2 + tf.clip_by_value(self.values1 - self.values2, -epsilon_decay, epsilon_decay)
         value_loss_1 = tf.squared_difference(clipped_value_estimate, rewards)
-        value_loss_2 = tf.squared_difference(values1, rewards)
+        value_loss_2 = tf.squared_difference(self.values1, rewards)
         value_loss = 0.5 * tf.reduce_mean(tf.maximum(value_loss_1, value_loss_2))
 
         loss = policy_loss + 0.01 * entropy_loss + 1. * value_loss
         grads = tf.gradients(loss, [self.actions_bias, self.values_bias])
         [actions_grad, values_grad] = grads
         
-        # print (len(grads))
-        # print (np.shape(actions_grad), np.shape(values_grad))
-        # print (actions_grad)
-        # okay so problem here is that action grad is actually nothing.
-        #   because actions1 is not used. 
-
         actions_grad = actions_grad / self.nbatch
-        values_grad = values_grad / self.nbatch
+        # values_grad = values_grad / self.nbatch
         
-        action_gvs = self.actions_model1.backward(states, actions_forward1, actions_grad)
-        values_gvs = self.values_model1.backward(states, values_forward1, values_grad)
+        action_gvs = self.actions_model1.backward(states, self.actions1_forward, actions_grad)
+        # values_gvs = self.values_model1.backward(states, self.values1_forward, values_grad)
         grads_and_vars = []
         grads_and_vars.extend(action_gvs)
-        grads_and_vars.extend(values_gvs)
+        # grads_and_vars.extend(values_gvs)
         
         return grads_and_vars
 

@@ -126,7 +126,6 @@ for e in range(total_episodes):
 
         value, action = model.predict(state)
         action_idx = np.argmax(action)
-        value = value[action_idx]
         
         ################################
         

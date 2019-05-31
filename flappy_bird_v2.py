@@ -26,7 +26,7 @@ import gym_ple
 from collections import deque
 import random
 
-from lib.PPOModel import PPOModel
+from lib.PPOModel_v2 import PPOModel
 
 action_set = [
     [0, 0],
@@ -75,30 +75,6 @@ class FlappyBirdEnv:
         
         return np.stack(self.state, axis=2)
     
-    '''
-    def step(self, action):
-        next_frame, reward, done, _ = self.env.step(action)
-        reward = self._reward_shaping(reward)        
-        next_frame = self._process(next_frame)
-        
-        self.total_reward += reward
-        self.total_step += 1
-        
-        self.state.append(next_frame)
-        return np.stack(self.state, axis=2), reward, done
-    '''
-    '''
-    def step(self, action):
-        cumulated_reward = 0.0
-        for a in action_set[action]:
-            next_state, reward, done, _ = self.env.step(a)
-            cumulated_reward += self._reward_shaping(reward)
-            self.total_step += 1
-            if done:
-                break
-            self.total_reward += reward
-        return self._process(next_state), cumulated_reward, done
-    '''
     def step(self, action):
         cumulated_reward = 0.0
         for a in action_set[action]:
@@ -167,7 +143,6 @@ for e in range(total_episodes):
 
         if done and env.total_step >= 10000:
             next_value, next_action = model.predict(next_state)
-            next_value = np.max(next_value)
             reward += 0.99 * next_value
         
         replay_buffer.append({'s':state, 'v': value, 'a':action, 'r':reward, 'd':done})
@@ -178,7 +153,6 @@ for e in range(total_episodes):
             state = env.reset()
 
     next_value, next_action = model.predict(next_state)
-    next_value = np.max(next_value)
 
     rets, advs = returns_advantages(replay_buffer, next_value)
 

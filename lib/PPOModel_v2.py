@@ -45,7 +45,7 @@ class PPOModel:
         self.advantages = tf.placeholder("float", [None])
         self.rewards = tf.placeholder("float", [None]) 
         
-        self.old_actions = tf.placeholder("float", [None, 4])
+        self.old_actions = tf.placeholder("int32", [None])
         self.old_values = tf.placeholder("float", [None]) 
         self.old_nlps = tf.placeholder("float", [None])
 
@@ -62,10 +62,9 @@ class PPOModel:
         ##############################################
 
         self.actions        = sample(self.logits)
-        self.actions_train  = sample(self.logits_train)
-        self.nlps           = neg_log_prob(logits=self.logits, actions=self.actions)
-        self.nlps_train     = neg_log_prob(logits=self.logits_train, actions=self.actions_train)
         self.policy_entropy = policy_entropy(self.logits_train)
+        self.nlps           = neg_log_prob(logits=self.logits, actions=self.actions)
+        self.nlps_train     = neg_log_prob(logits=self.logits_train, actions=self.old_actions)
 
         self.opt = tf.train.AdamOptimizer(learning_rate=2.5e-4, beta1=0.9, beta2=0.999, epsilon=1.)
         self.train_op = self.opt.apply_gradients(grads_and_vars=self.gvs(self.states, self.rewards, self.advantages, self.old_actions, self.old_values, self.old_nlps))
@@ -82,16 +81,13 @@ class PPOModel:
     ####################################################################
 
     def predict(self, state):
-        action_idx, value, nlp = self.sess.run([self.actions, self.values, self.nlps], {self.states:[state]})
+        value, action, nlp = self.sess.run([self.values, self.actions, self.nlps], {self.states:[state]})
 
-        action_idx = np.squeeze(action_idx)
+        action = np.squeeze(action)
         value = np.squeeze(value)
         nlp = np.squeeze(nlp)
         
-        action = np.zeros(shape=4)
-        action[action_idx] = 1
-        
-        return value, action, nlp
+        return action, value, nlp
 
     def gvs(self, states, rewards, advantages, old_actions, old_values, old_nlps):
     
@@ -101,7 +97,7 @@ class PPOModel:
         epsilon_decay = tf.train.polynomial_decay(self.epsilon, global_step, self.decay_max, 0.001)
         
         ############
-        
+
         ratio = tf.exp(old_nlps - self.nlps_train)
         clipped_ratio = tf.clip_by_value(ratio, 1.0 - epsilon_decay, 1.0 + epsilon_decay, name="clipped_ratio")
         policy_reward = tf.reduce_mean(tf.minimum(ratio * advantages, clipped_ratio * advantages), name="policy_reward")

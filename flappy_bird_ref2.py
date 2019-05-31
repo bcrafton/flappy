@@ -212,6 +212,8 @@ class Trainer(object):
         clipped_ratio = tf.clip_by_value(ratio, 1.0 - self.clip_range, 1.0 + self.clip_range, name="clipped_ratio")
         self.policy_reward = tf.reduce_mean(tf.minimum(ratio * self.sampled_normalized_advantage, clipped_ratio * self.sampled_normalized_advantage), name="policy_reward")
 
+        self.entropy_bonus = tf.reduce_mean(self.model.policy_entropy, name="entropy_bonus")
+
         value = self.model.value
         clipped_value = tf.add(self.sampled_value, tf.clip_by_value(value - self.sampled_value, -self.clip_range, self.clip_range), name="clipped_value")
         self.vf_loss = tf.multiply(0.5, tf.reduce_mean(tf.maximum(tf.square(value - self.sampled_return), tf.square(clipped_value - self.sampled_return))), name="vf_loss")

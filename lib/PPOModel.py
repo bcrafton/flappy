@@ -116,7 +116,11 @@ class PPOModel:
 
         global_step = tf.train.get_or_create_global_step()
         epsilon_decay = tf.train.polynomial_decay(self.epsilon, global_step, self.decay_max, 0.001)
-
+        
+        ############
+        
+        '''
+        # ratio = tf.exp(self.pi.log_prob(self.actions) - old_pi.log_prob(self.actions))
         ratio = tf.exp(self.neg_log_prob(self.actions1_train, actions) - self.neg_log_prob(self.actions2, actions))        
         ratio = tf.clip_by_value(ratio, 0, 10)
         surr1 = advantages * ratio
@@ -131,6 +135,22 @@ class PPOModel:
         value_loss = 0.5 * tf.reduce_mean(tf.maximum(value_loss_1, value_loss_2))
 
         loss = policy_loss + 0.01 * entropy_loss + 1. * value_loss
+        '''
+        
+        ratio = tf.exp(self.neg_log_prob(self.actions2, actions) - self.neg_log_prob(self.actions1_train, actions))
+        clipped_ratio = tf.clip_by_value(ratio, 1.0 - epsilon_decay, 1.0 + epsilon_decay, name="clipped_ratio")
+        self.policy_reward = tf.reduce_mean(tf.minimum(ratio * advantages, clipped_ratio * advantages), name="policy_reward")
+
+        # self.entropy_bonus = tf.reduce_mean(self.model.policy_entropy, name="entropy_bonus")
+        # entropy_bonus = -tf.reduce_mean(self.pi1_train.entropy())
+        entropy_bonus = tf.reduce_mean(self.pi1_train.entropy())
+
+        clipped_value = tf.add(self.values2, tf.clip_by_value(self.values1 - self.values2, -epsilon_decay, epsilon_decay), name="clipped_value")
+        self.vf_loss = tf.multiply(0.5, tf.reduce_mean(tf.maximum(tf.square(self.values1 - rewards), tf.square(clipped_value - rewards))), name="vf_loss")
+        self.loss = -(self.policy_reward - 0.5 * self.vf_loss + 0.01 * entropy_bonus)
+
+        ############
+        
         grads = tf.gradients(loss, [self.actions_bias, self.values_bias])
         [actions_grad, values_grad] = grads
         

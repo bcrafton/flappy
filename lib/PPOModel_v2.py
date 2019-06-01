@@ -63,6 +63,8 @@ class PPOModel:
 
         self.actions        = sample(self.logits)
         self.policy_entropy = policy_entropy(self.logits_train)
+        # sampled_neg_log = (logits, actions)
+        # neg_log = (logits, old_actions)
         self.nlps           = neg_log_prob(logits=self.logits, actions=self.actions)
         self.nlps_train     = neg_log_prob(logits=self.logits_train, actions=self.old_actions)
 
@@ -81,7 +83,7 @@ class PPOModel:
     ####################################################################
 
     def predict(self, state):
-        value, action, nlp = self.sess.run([self.values, self.actions, self.nlps], {self.states:[state]})
+        action, value, nlp = self.sess.run([self.actions, self.values, self.nlps], {self.states:[state]})
 
         action = np.squeeze(action)
         value = np.squeeze(value)

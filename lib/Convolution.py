@@ -73,7 +73,7 @@ class Convolution(Layer):
         return filter_weights_size + bias_weights_size
                 
     def forward(self, X):
-        Z = tf.nn.conv2d(X, self.filters, self.strides, self.padding) # + tf.reshape(self.bias, [1, 1, self.fout])
+        Z = tf.nn.conv2d(X, self.filters, self.strides, self.padding) + tf.reshape(self.bias, [1, 1, self.fout])
         A = self.activation.forward(Z)
         return A
         

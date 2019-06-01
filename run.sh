@@ -12,4 +12,9 @@
 # python flappy_bird.py --gpu 2 > results6 &
 # python flappy_bird.py --gpu 3 > results7 &
 
-python flappy_bird_v2.py --gpu 0 > results8 &
+# python flappy_bird_v2.py --gpu 0 > results8 &
+# python flappy_bird_v2.py --gpu 1 > results9 &
+
+python flappy_bird_v1.py --gpu 2 > results10 &
+python flappy_bird_v2.py --gpu 3 > results11 &
+

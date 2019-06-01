@@ -35,7 +35,7 @@ action_set = [
     [1, 1],
 ]
 action_space = len(action_set)
-total_episodes = int(1e4)
+total_episodes = int(1e5)
 
 ####################################
 

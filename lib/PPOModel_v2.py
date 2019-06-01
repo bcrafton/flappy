@@ -140,23 +140,23 @@ class PPOModel:
 def create_model(nbatch):
     l1_1 = Convolution(input_sizes=[nbatch, 80, 80, 4], filter_sizes=[8, 8, 4, 32], strides=[1,4,4,1], padding="SAME", name='conv1')
     l1_2 = Relu()
-    l1_3 = MaxPool(size=[nbatch, 20, 20, 32], ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding="SAME")
+    # l1_3 = MaxPool(size=[nbatch, 20, 20, 32], ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding="SAME")
 
-    l2_1 = Convolution(input_sizes=[nbatch, 10, 10, 32], filter_sizes=[4, 4, 32, 64], strides=[1,2,2,1], padding="SAME", name='conv2')
+    l2_1 = Convolution(input_sizes=[nbatch, 20, 20, 32], filter_sizes=[4, 4, 32, 64], strides=[1,2,2,1], padding="SAME", name='conv2')
     l2_2 = Relu()
 
-    l3_1 = Convolution(input_sizes=[nbatch, 5, 5, 64], filter_sizes=[3, 3, 64, 64], strides=[1,1,1,1], padding="SAME", name='conv3')
+    l3_1 = Convolution(input_sizes=[nbatch, 10, 10, 64], filter_sizes=[3, 3, 64, 64], strides=[1,1,1,1], padding="SAME", name='conv3')
     l3_2 = Relu()
 
-    l4 = ConvToFullyConnected(input_shape=[5, 5, 64])
+    l4 = ConvToFullyConnected(input_shape=[10, 10, 64])
 
-    l5_1 = FullyConnected(input_shape=5*5*64, size=512, name='fc1')
+    l5_1 = FullyConnected(input_shape=10*10*64, size=512, name='fc1')
     l5_2 = Relu()
 
     actions = FullyConnected(input_shape=512, size=4, name='action')
     values = FullyConnected(input_shape=512, size=1, name='values')
 
-    actions_model = Model(layers=[l1_1, l1_2, l1_3, \
+    actions_model = Model(layers=[l1_1, l1_2,       \
                                   l2_1, l2_2,       \
                                   l3_1, l3_2,       \
                                   l4,               \
@@ -164,7 +164,7 @@ def create_model(nbatch):
                                   actions           \
                                   ])
 
-    values_model = Model(layers=[l1_1, l1_2, l1_3, \
+    values_model = Model(layers=[l1_1, l1_2,       \
                                  l2_1, l2_2,       \
                                  l3_1, l3_2,       \
                                  l4,               \

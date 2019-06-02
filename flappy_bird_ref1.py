@@ -12,7 +12,6 @@ import multiprocessing as mp
 ##################################
 
 game_name = 'FlappyBird-v0'
-# env = gym.make(game_name)
 
 action_set = [
     [0, 0],
@@ -56,13 +55,18 @@ class FlappyBirdEnv:
 
     def step(self, action):
         cumulated_reward = 0.0
+        if action < 0. or action > 3.:
+            print (action)
+            assert (False)
         for a in action_set[action]:
             next_state, reward, done, _ = self.env.step(a)
-            cumulated_reward += self._reward_shaping(reward)
+            reward = self._reward_shaping(reward)
+            cumulated_reward += reward
             self.total_step += 1
+            self.total_reward += reward
             if done:
                 break
-            self.total_reward += reward
+            
         return self._process(next_state), cumulated_reward, done
 
     def _reward_shaping(self, reward):
@@ -154,15 +158,12 @@ class PPO(object):
                 }
                 sess.run(self.train_op, fd)
 
-    # only time we call this [evaluate_state] is for inference, not training. 
-    # so mode just returns the largest thing ? which would be predict ? 
     def evaluate_state(self, state, stochastic=True):
         if stochastic:
-            action, value = self.sess.run(
-                [self.sample_action_op, self.values], {self.states: [state]})
+            action, value = self.sess.run([self.sample_action_op, self.values], {self.states: [state]})
         else:
-            action, value = self.sess.run(
-                [self.eval_action, self.values], {self.states: [state]})
+            action, value = self.sess.run([self.eval_action, self.values], {self.states: [state]})
+
         return action[0], value[0]
 
 def returns_advantages (replay_buffer, next_value, gamma=0.99, lam=0.95):
@@ -189,12 +190,19 @@ cluster = tf.train.ClusterSpec({
 })
 
 def worker(task_idx, coordinator_queue, train_data_queue):
+    os.environ['CUDA_VISIBLE_DEVICES'] = ''
     env = FlappyBirdEnv()
 
+    server = tf.train.Server(cluster, job_name='worker', task_index=task_idx)
     with tf.Session(server.target) as sess:
         ppo = PPO(sess)
+        while len(sess.run(tf.report_uninitialized_variables())) > 0:
+            sleep(1.0)
+
+        summary_writer = tf.summary.FileWriter(log_dir + 'worker_{}'.format(task_idx), sess.graph)
 
         for e in range(ep_max+1):
+            coordinator_queue.get()
             if e == 0:
                 state = env.reset()
                 total_rewards = [0.0, 0.0]
@@ -207,26 +215,40 @@ def worker(task_idx, coordinator_queue, train_data_queue):
                 next_state, r, done = env.step(a)
                 next_state = np.concatenate((state[:, :, 1:], next_state[:, :, -1:]), axis=2)
                 if done and env.total_step >= 10000:
-                    # reason why we do this is bc we need a next value if u look in return_adv
                     _, next_value = ppo.evaluate_state(next_state, stochastic=True)
                     r += 0.99 * next_value
 
                 replay_buffer.append({'s':state, 'v':v, 'a':a, 'r':r, 'done':done})
                 state = next_state
                 if done:
+                    summary = tf.Summary()
+                    summary.value.add(tag='score', simple_value=env.total_reward)
+                    summary.value.add(tag='step', simple_value=env.total_step)
+                    summary_writer.add_summary(summary, len(total_rewards))
+                    summary_writer.flush()
+
                     total_rewards.append(env.total_reward)
                     total_steps.append(env.total_step)
                     state = env.reset()
-                    
-            # reason why we do this is bc we need a next value if u look in return_adv
+
             _, next_value = ppo.evaluate_state(next_state, stochastic=True)
             returns, advs = returns_advantages(replay_buffer, next_value)
+
+            summary = 'Task: {:2}, Mean Reward: {:.2f}, Min Reward: {:.2f}, Max Reward: {:.2f}, Mean Step: {:.2f}, Episode Nums: {}'.format(
+                task_idx,
+                np.mean(total_rewards[-21:-1]),
+                np.min(total_rewards[-21:-1]),
+                np.max(total_rewards[-21:-1]),
+                np.mean(total_steps[-21:-1]),
+                len(total_rewards),
+            )
 
             train_data_queue.put((
                 [rb['s'] for rb in replay_buffer],
                 returns,
                 advs,
-                [rb['a'] for rb in replay_buffer]
+                [rb['a'] for rb in replay_buffer],
+                summary
             ))
             
 ##################################
@@ -272,26 +294,6 @@ for e in range(ep_max+1):
             print(s)
 
 ##################################
-
-total_rewards = []
-total_steps = []
-env = FlappyBirdEnv()
-
-for e in range(200):
-    state = env.reset()
-
-    while True:
-        a, _ = ppo.evaluate_state(state, stochastic=False)
-        next_state, r, done = env.step(a)
-        state = np.concatenate((state[:, :, 1:], next_state[:, :, -1:]), axis=2)
-        if done:
-            total_rewards.append(env.total_reward)
-            total_steps.append(env.total_step)
-            break
-
-    print('Iter :', e, '| Score:', total_rewards[-1], '| Mean Score', round(np.mean(total_rewards), 2))
-
-np.mean(total_rewards), np.min(total_rewards), np.max(total_rewards)
 
 
 

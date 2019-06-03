@@ -33,7 +33,7 @@ def neg_log_prob(logits, actions):
 
 class PPOModel:
     def __init__(self, sess, nbatch, nclass, epsilon, decay_max):
-        self.use_tf = True
+        self.use_tf = False
 
         self.sess = sess
         self.nbatch = nbatch
@@ -101,16 +101,16 @@ class PPOModel:
 
         ##############################################
 
-        self.opt = tf.train.AdamOptimizer(learning_rate=2.5e-4, epsilon=1e-5)
-
         if self.use_tf:
+            self.opt = tf.train.AdamOptimizer(learning_rate=2.5e-4, epsilon=1e-5)
             grads, _ = tf.clip_by_global_norm(tf.gradients(self.loss, self.params), 0.5)
             grads_and_vars = list(zip(grads, self.params))
             self.train_op = self.opt.apply_gradients(grads_and_vars)
         else:
+            self.opt = tf.train.AdamOptimizer(learning_rate=2.5e-4, epsilon=1e-2)
             self.train_op = self.opt.apply_gradients(grads_and_vars=self.gvs(self.states, self.rewards, self.advantages, self.old_actions, self.old_values, self.old_nlps))
 
-        # self.grads_op = self.gvs(self.states, self.rewards, self.advantages, self.old_actions, self.old_values, self.old_nlps)
+        self.grads_op = self.gvs(self.states, self.rewards, self.advantages, self.old_actions, self.old_values, self.old_nlps)
 
         global_step = tf.train.get_or_create_global_step()
         self.global_step_op = global_step.assign_add(1)
@@ -135,13 +135,15 @@ class PPOModel:
     def gvs(self, states, rewards, advantages, old_actions, old_values, old_nlps):
 
         grads = tf.gradients(self.loss, [self.logits_bias, self.values_bias])
-        grads, _ = tf.clip_by_global_norm(grads, 0.5)
+        # grads, _ = tf.clip_by_global_norm(grads, 0.5)
         [logits_grad, values_grad] = grads
 
-        # logits_grad = tf.clip_by_global_norm(logits_grad, 0.5)     
         # logits_grad = logits_grad / self.nbatch
-        # values_grad = tf.clip_by_global_norm(values_grad, 0.5) 
-        # values_grad = values_grad / self.nbatch
+        logits_grad, _ = tf.clip_by_global_norm([logits_grad], 0.5) 
+        logits_grad = tf.reshape(logits_grad, (self.nbatch, 4))
+
+        # values_grad = values_grad / self.nbatch    
+        values_grad, _ = tf.clip_by_global_norm([values_grad], 0.5) 
         values_grad = tf.reshape(values_grad, (self.nbatch, 1))
         
         logits_gvs = self.actions_model.backward(states, self.logits_forward, logits_grad)
@@ -222,7 +224,7 @@ class PPOModel:
         return actions_model, values_model
 
 
-####################################
+    ####################################################################
         
         
         

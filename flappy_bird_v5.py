@@ -4,8 +4,8 @@ import os
 import sys
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--lr', type=float, default=1e-4)
-parser.add_argument('--eps', type=float, default=1.)
+parser.add_argument('--lr', type=float, default=2.5e-4)
+parser.add_argument('--eps', type=float, default=1e-5)
 parser.add_argument('--gpu', type=int, default=0)
 parser.add_argument('--epochs', type=int, default=5)
 parser.add_argument('--batch_size', type=int, default=64)
@@ -188,15 +188,20 @@ for e in range(total_episodes):
     for ii in range(len(g2)):
         print (ii, np.shape(g2[ii][0]))
     '''
+    #'''
     print ('----------------')
-    print ('actions', np.std(g1[0][0]),  np.std(g1[0][1]))
-    print ('values',  np.std(g1[10][0]), np.std(g1[10][1]))
+    # print ('actions', np.std(g1[0][0]), np.std(g1[0][1]))
+    # print ('actions', np.std(g1[1][0]), np.std(g1[1][1]))
+    print ('values',  np.std(g1[2][0]), np.std(g1[2][1]))
+    print ('values', g1[3][0], g1[3][1])
+    # print ('fc1',     np.std(g1[4][0]), np.std(g1[4][1]))
 
-    print ('actions', np.std(g2[8][0]),  np.std(g2[8][1]))
+    # print ('actions', np.std(g2[8][0]),  np.std(g2[8][1]))
+    # print ('actions', np.std(g2[9][0]),  np.std(g2[9][1]))
     print ('values',  np.std(g2[10][0]), np.std(g2[10][1]))
-
-    # print ('----------------')
-
+    print ('values', g2[11][0], g2[11][1])
+    # print ('fc1',     np.std(g2[6][0]),  np.std(g2[6][1]))
+    #'''
     #####################################
 
 

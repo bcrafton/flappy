@@ -39,7 +39,7 @@ class PPOModel:
         self.nbatch = nbatch
         self.nclass = nclass
         self.logits_bias = tf.Variable(np.zeros(shape=(self.nbatch, self.nclass)), dtype=tf.float32)
-        self.values_bias = tf.Variable(np.zeros(shape=(self.nbatch)), dtype=tf.float32)
+        self.values_bias = tf.Variable(np.zeros(shape=(self.nbatch, 1)), dtype=tf.float32)
         self.epsilon = epsilon
         self.decay_max = decay_max
         self.lr = lr
@@ -56,7 +56,7 @@ class PPOModel:
         if self.use_tf:
             self.logits, self.pi, self.values, self.params = self.create_model_tf()
         else:
-            self.actions_model, self.values_model = self.create_model(nbatch)
+            self.actions_model, self.values_model, self.headless, self.actions_head, self.values_head = self.create_model(nbatch)
             weights1 = self.actions_model.get_weights()
             weights2 = self.values_model.get_weights()
             weights = {}
@@ -112,7 +112,7 @@ class PPOModel:
 
         ##############################################
 
-        if True: # self.use_tf:
+        if self.use_tf:
             self.opt = tf.train.AdamOptimizer(learning_rate=2.5e-4, epsilon=1e-5)
             grads, _ = tf.clip_by_global_norm(tf.gradients(self.loss, self.params), 0.5)
             grads_and_vars = list(zip(grads, self.params))
@@ -147,24 +147,36 @@ class PPOModel:
 
     def gvs(self, states, rewards, advantages, old_actions, old_values, old_nlps):
 
-        grads = tf.gradients(self.loss, [self.logits_bias, self.values_bias])
-        # grads, _ = tf.clip_by_global_norm(grads, 0.5)
-        [logits_grad, values_grad] = grads
+        # grads = tf.gradients(self.loss, self.params)
+        grads = tf.gradients(self.loss, [self.logits_bias, self.values_bias] + self.params)
+        grads, _ = tf.clip_by_global_norm(grads, 0.5)
+        # [logits_grad, values_grad] = grads
+        logits_grad = grads[0]
+        values_grad = grads[1]
+
+        # print (values_grad)
 
         # logits_grad = logits_grad / self.nbatch
-        logits_grad, _ = tf.clip_by_global_norm([logits_grad], 0.5) 
+        # logits_grad, _ = tf.clip_by_global_norm([logits_grad], 0.5) 
         logits_grad = tf.reshape(logits_grad, (self.nbatch, 4))
 
         # values_grad = values_grad / self.nbatch    
-        values_grad, _ = tf.clip_by_global_norm([values_grad], 0.5) 
+        # values_grad, _ = tf.clip_by_global_norm([values_grad], 0.5) 
         values_grad = tf.reshape(values_grad, (self.nbatch, 1))
         
-        logits_gvs = self.actions_model.backward(states, self.logits_forward, logits_grad)
-        values_gvs = self.values_model.backward(states, self.values_forward, values_grad)
+        logits_back = self.actions_head.backward(self.logits_forward[-2], self.logits_forward[-1], logits_grad)
+        logits_gvs  = self.actions_head.gv(self.logits_forward[-2], self.logits_forward[-1], logits_grad)
+ 
+        values_back = self.values_head.backward(self.values_forward[-2], self.values_forward[-1], values_grad)
+        values_gvs  = self.values_head.gv(self.values_forward[-2], self.values_forward[-1], values_grad)
+
+        gvs = self.headless.backward(states, self.logits_forward, logits_back + values_back)
+
         grads_and_vars = []
         grads_and_vars.extend(logits_gvs)
         grads_and_vars.extend(values_gvs)
-        
+        grads_and_vars.extend(gvs)
+
         return grads_and_vars
 
     def train(self, states, rewards, advantages, old_actions, old_values, old_nlps):
@@ -201,22 +213,22 @@ class PPOModel:
         return action_logits, action_dists, values, params
 
     def create_model(self, nbatch):
-        l1_1 = Convolution(input_sizes=[nbatch, 84, 84, 4], filter_sizes=[8, 8, 4, 32], strides=[1,4,4,1], init='alexnet', padding="VALID", name='conv1')
+        l1_1 = Convolution(input_sizes=[nbatch, 84, 84, 4], filter_sizes=[8, 8, 4, 32], strides=[1,4,4,1], padding="VALID", name='conv1')
         l1_2 = Relu()
 
-        l2_1 = Convolution(input_sizes=[nbatch, 20, 20, 32], filter_sizes=[4, 4, 32, 64], strides=[1,2,2,1], init='alexnet', padding="VALID", name='conv2')
+        l2_1 = Convolution(input_sizes=[nbatch, 20, 20, 32], filter_sizes=[4, 4, 32, 64], strides=[1,2,2,1], padding="VALID", name='conv2')
         l2_2 = Relu()
 
-        l3_1 = Convolution(input_sizes=[nbatch, 9, 9, 64], filter_sizes=[3, 3, 64, 64], strides=[1,1,1,1], init='alexnet', padding="VALID", name='conv3')
+        l3_1 = Convolution(input_sizes=[nbatch, 9, 9, 64], filter_sizes=[3, 3, 64, 64], strides=[1,1,1,1], padding="VALID", name='conv3')
         l3_2 = Relu()
 
         l4 = ConvToFullyConnected(input_shape=[7, 7, 64])
 
-        l5_1 = FullyConnected(input_shape=7*7*64, size=512, init='alexnet', name='fc1')
+        l5_1 = FullyConnected(input_shape=7*7*64, size=512, name='fc1')
         l5_2 = Relu()
 
-        actions = FullyConnected(input_shape=512, size=4, init='alexnet', name='action')
-        values = FullyConnected(input_shape=512, size=1, init='alexnet', name='values')
+        actions = FullyConnected(input_shape=512, size=4, name='action')
+        values = FullyConnected(input_shape=512, size=1, name='values')
 
         actions_model = Model(layers=[l1_1, l1_2,       \
                                       l2_1, l2_2,       \
@@ -234,7 +246,14 @@ class PPOModel:
                                      values            \
                                      ])
 
-        return actions_model, values_model
+        headless = Model(layers=[l1_1, l1_2,       \
+                                 l2_1, l2_2,       \
+                                 l3_1, l3_2,       \
+                                 l4,               \
+                                 l5_1, l5_2        \
+                                 ])
+
+        return actions_model, values_model, headless, actions, values
 
 
     ####################################################################

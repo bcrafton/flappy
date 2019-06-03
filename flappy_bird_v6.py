@@ -26,7 +26,7 @@ import gym_ple
 from collections import deque
 import random
 
-from lib.PPOModel_v5 import PPOModel
+from lib.PPOModel_v6 import PPOModel
 
 action_set = [
     [0, 0],

@@ -177,6 +177,20 @@ for e in range(total_episodes):
     model.set_weights()
 
     #####################################
+    '''
+    s = 0
+    e = 64
+    gvs = model.grads(states[s:e], rewards[s:e], advantages[s:e], actions[s:e], values[s:e], nlps[s:e])
+    
+    #for ii in range(len(gvs)):
+    #    print (ii, np.shape(gvs[ii][0]))
+
+    print ('----------------')
+    print (np.std(gvs[0][0]), np.std(gvs[10][0]))
+    print (gvs[1][0], gvs[11][0])
+    # print ('----------------')
+    '''
+    #####################################
 
 
 

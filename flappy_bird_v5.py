@@ -111,7 +111,7 @@ sess = tf.InteractiveSession()
 
 ####################################
 
-model = PPOModel(sess=sess, nbatch=64, nclass=4, epsilon=0.1, decay_max=8000)
+model = PPOModel(sess=sess, nbatch=64, nclass=4, epsilon=0.1, decay_max=8000, lr=args.lr, eps=args.eps)
 
 replay_buffer = []
 env = FlappyBirdEnv()
@@ -177,24 +177,26 @@ for e in range(total_episodes):
     model.set_weights()
 
     #####################################
-    # '''
+    
     s = 0
     e = 64
-    gvs = model.grads(states[s:e], rewards[s:e], advantages[s:e], actions[s:e], values[s:e], nlps[s:e])
-    
-    #for ii in range(len(gvs)):
-    #    print (ii, np.shape(gvs[ii][0]))
+    g1, g2 = model.grads(states[s:e], rewards[s:e], advantages[s:e], actions[s:e], values[s:e], nlps[s:e])
+    '''
+    for ii in range(len(g1)):
+        print (ii, np.shape(g1[ii][0]))
 
+    for ii in range(len(g2)):
+        print (ii, np.shape(g2[ii][0]))
+    '''
     print ('----------------')
+    print ('actions', np.std(g1[0][0]),  np.std(g1[0][1]))
+    print ('values',  np.std(g1[10][0]), np.std(g1[10][1]))
 
-    print ('fc1', np.std(gvs[0][0]), 'fc2', np.std(gvs[10][0]))
-    print ('fc1', gvs[1][0],         'fc2', gvs[11][0])
-
-    print ('fc1', np.std(gvs[0][1]), 'fc2', np.std(gvs[10][1]))
-    print ('fc1', gvs[1][1],         'fc2', gvs[11][1])
+    print ('actions', np.std(g2[8][0]),  np.std(g2[8][1]))
+    print ('values',  np.std(g2[10][0]), np.std(g2[10][1]))
 
     # print ('----------------')
-    # '''
+
     #####################################
 
 

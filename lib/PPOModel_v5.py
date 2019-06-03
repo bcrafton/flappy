@@ -32,7 +32,7 @@ def neg_log_prob(logits, actions):
     return tf.nn.softmax_cross_entropy_with_logits_v2(logits=logits, labels=one_hot_actions, dim=-1)
 
 class PPOModel:
-    def __init__(self, sess, nbatch, nclass, epsilon, decay_max):
+    def __init__(self, sess, nbatch, nclass, epsilon, decay_max, lr=2.5e-4, eps=1e-2):
         self.use_tf = False
 
         self.sess = sess
@@ -42,6 +42,8 @@ class PPOModel:
         self.values_bias = tf.Variable(np.zeros(shape=(self.nbatch)), dtype=tf.float32)
         self.epsilon = epsilon
         self.decay_max = decay_max
+        self.lr = lr
+        self.eps = eps
 
         self.states = tf.placeholder("float", [None, 84, 84, 4])
         self.advantages = tf.placeholder("float", [None])
@@ -55,6 +57,15 @@ class PPOModel:
             self.logits, self.pi, self.values, self.params = self.create_model_tf()
         else:
             self.actions_model, self.values_model = self.create_model(nbatch)
+            weights1 = self.actions_model.get_weights()
+            weights2 = self.values_model.get_weights()
+            weights = {}
+            weights.update(weights1)
+            weights.update(weights2)
+            self.params = []
+            for key in weights.keys():
+                # print (key)
+                self.params.append(weights[key])
 
         ##############################################
 
@@ -101,16 +112,18 @@ class PPOModel:
 
         ##############################################
 
-        if self.use_tf:
+        if True: # self.use_tf:
             self.opt = tf.train.AdamOptimizer(learning_rate=2.5e-4, epsilon=1e-5)
             grads, _ = tf.clip_by_global_norm(tf.gradients(self.loss, self.params), 0.5)
             grads_and_vars = list(zip(grads, self.params))
             self.train_op = self.opt.apply_gradients(grads_and_vars)
         else:
-            self.opt = tf.train.AdamOptimizer(learning_rate=2.5e-4, epsilon=1e-2)
+            self.opt = tf.train.AdamOptimizer(learning_rate=self.lr, epsilon=self.eps)
             self.train_op = self.opt.apply_gradients(grads_and_vars=self.gvs(self.states, self.rewards, self.advantages, self.old_actions, self.old_values, self.old_nlps))
 
-        self.grads_op = self.gvs(self.states, self.rewards, self.advantages, self.old_actions, self.old_values, self.old_nlps)
+        self.grads_op1 = self.gvs(self.states, self.rewards, self.advantages, self.old_actions, self.old_values, self.old_nlps)
+        grads_op2, _ = tf.clip_by_global_norm(tf.gradients(self.loss, self.params), 0.5)
+        self.grads_op2 = list(zip(grads_op2, self.params))
 
         global_step = tf.train.get_or_create_global_step()
         self.global_step_op = global_step.assign_add(1)
@@ -163,14 +176,14 @@ class PPOModel:
                                      self.old_nlps:old_nlps})
 
     def grads(self, states, rewards, advantages, old_actions, old_values, old_nlps):
-        ret = self.sess.run(self.grads_op, 
-                            feed_dict={self.states:states, 
-                                       self.rewards:rewards, 
-                                       self.advantages:advantages, 
-                                       self.old_actions:old_actions, 
-                                       self.old_values:old_values, 
-                                       self.old_nlps:old_nlps})
-        return ret
+        g1, g2 = self.sess.run([self.grads_op1, self.grads_op2],
+                               feed_dict={self.states:states, 
+                                          self.rewards:rewards, 
+                                          self.advantages:advantages, 
+                                          self.old_actions:old_actions, 
+                                          self.old_values:old_values, 
+                                          self.old_nlps:old_nlps})
+        return g1, g2
 
     
     def create_model_tf(self):        

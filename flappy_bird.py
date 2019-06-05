@@ -4,8 +4,8 @@ import os
 import sys
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--lr', type=float, default=1e-4)
-parser.add_argument('--eps', type=float, default=1.)
+parser.add_argument('--lr', type=float, default=2.5e-4)
+parser.add_argument('--eps', type=float, default=1e-5)
 parser.add_argument('--gpu', type=int, default=0)
 parser.add_argument('--epochs', type=int, default=5)
 parser.add_argument('--batch_size', type=int, default=64)
@@ -26,7 +26,7 @@ import gym_ple
 from collections import deque
 import random
 
-from lib.PPOModel_v2 import PPOModel
+from lib.PPOModel import PPOModel
 
 action_set = [
     [0, 0],
@@ -101,7 +101,7 @@ class FlappyBirdEnv:
     def _process(self, state):
         output = cv2.cvtColor(state, cv2.COLOR_BGR2GRAY)
         output = output[:410, :]
-        output = cv2.resize(output, (80, 80))
+        output = cv2.resize(output, (84, 84))
         output = output / 255.0
         return output
 
@@ -111,7 +111,7 @@ sess = tf.InteractiveSession()
 
 ####################################
 
-model = PPOModel(sess=sess, nbatch=64, nclass=4, epsilon=0.1, decay_max=8000)
+model = PPOModel(sess=sess, nbatch=64, nclass=4, epsilon=0.1, decay_max=8000, lr=args.lr, eps=args.eps)
 
 replay_buffer = []
 env = FlappyBirdEnv()
@@ -176,6 +176,32 @@ for e in range(total_episodes):
 
     model.set_weights()
 
+    #####################################
+    
+    # s = 0
+    # e = 64
+    # g1, g2 = model.grads(states[s:e], rewards[s:e], advantages[s:e], actions[s:e], values[s:e], nlps[s:e])
+    '''
+    for ii in range(len(g1)):
+        print (ii, np.shape(g1[ii][0]))
+
+    for ii in range(len(g2)):
+        print (ii, np.shape(g2[ii][0]))
+    '''
+    #'''
+    # print ('----------------')
+    # print ('actions', np.std(g1[0][0]), np.std(g1[0][1]))
+    # print ('actions', np.std(g1[1][0]), np.std(g1[1][1]))
+    # print ('values',  np.std(g1[2][0]), np.std(g1[2][1]))
+    # print ('values', g1[3][0], g1[3][1])
+    # print ('fc1',     np.std(g1[4][0]), np.std(g1[4][1]))
+
+    # print ('actions', np.std(g2[8][0]),  np.std(g2[8][1]))
+    # print ('actions', np.std(g2[9][0]),  np.std(g2[9][1]))
+    # print ('values',  np.std(g2[10][0]), np.std(g2[10][1]))
+    # print ('values', g2[11][0], g2[11][1])
+    # print ('fc1',     np.std(g2[6][0]),  np.std(g2[6][1]))
+    #'''
     #####################################
 
 

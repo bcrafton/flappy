@@ -16,24 +16,8 @@ from lib.Activation import Activation
 from lib.Activation import Relu
 from lib.Activation import Linear
 
-def sample(logits):
-    uniform = tf.random_uniform(tf.shape(logits))
-    return tf.argmax(logits - tf.log(-tf.log(uniform)), axis=-1)
-
-def policy_entropy(logits):
-    a = logits - tf.reduce_max(logits, axis=-1, keepdims=True)
-    exp_a = tf.exp(a)
-    z = tf.reduce_sum(exp_a, axis=-1, keepdims=True)
-    p = exp_a / z
-    return tf.reduce_sum(p * (tf.log(z) - a), axis=-1)
-
-def neg_log_prob(logits, actions):
-    one_hot_actions = tf.one_hot(actions, 4)
-    return tf.nn.softmax_cross_entropy_with_logits_v2(logits=logits, labels=one_hot_actions, dim=-1)
-
 class PPOModel:
     def __init__(self, sess, nbatch, nclass, epsilon, decay_max, lr=2.5e-4, eps=1e-2):
-        self.use_tf = False
 
         self.sess = sess
         self.nbatch = nbatch
@@ -53,25 +37,20 @@ class PPOModel:
         self.old_values = tf.placeholder("float", [None]) 
         self.old_nlps = tf.placeholder("float", [None])
 
-        if self.use_tf:
-            self.logits, self.pi, self.values, self.params = self.create_model_tf()
-        else:
-            self.actions_model, self.values_model, self.headless, self.actions_head, self.values_head = self.create_model(nbatch)
-            weights1 = self.actions_model.get_weights()
-            weights2 = self.values_model.get_weights()
-            weights = {}
-            weights.update(weights1)
-            weights.update(weights2)
-            self.params = []
-            for key in weights.keys():
-                # print (key)
-                self.params.append(weights[key])
+        self.actions_model, self.values_model, self.headless, self.actions_head, self.values_head = self.create_model(nbatch)
+        weights1 = self.actions_model.get_weights()
+        weights2 = self.values_model.get_weights()
+        weights = {}
+        weights.update(weights1)
+        weights.update(weights2)
+        self.params = []
+        for key in weights.keys():
+            self.params.append(weights[key])
 
         ##############################################
 
-        if not self.use_tf:
-            [self.logits, self.logits_forward] = self.actions_model.forward(self.states)
-            [self.values, self.values_forward] = self.values_model.forward(self.states)
+        [self.logits, self.logits_forward] = self.actions_model.forward(self.states)
+        [self.values, self.values_forward] = self.values_model.forward(self.states)
 
         self.logits_train = self.logits + self.logits_bias
         self.values_train = self.values + self.values_bias
@@ -88,8 +67,6 @@ class PPOModel:
         
         self.nlps1          = self.pi1.log_prob(self.actions)
         self.nlps2          = self.pi2.log_prob(self.old_actions)
-
-        self.policy_entropy = policy_entropy(self.logits_train)
 
         ##############################################
 
@@ -115,18 +92,8 @@ class PPOModel:
 
         ##############################################
 
-        if self.use_tf:
-            self.opt = tf.train.AdamOptimizer(learning_rate=2.5e-4, epsilon=1e-5)
-            grads, _ = tf.clip_by_global_norm(tf.gradients(self.loss, self.params), 0.5)
-            grads_and_vars = list(zip(grads, self.params))
-            self.train_op = self.opt.apply_gradients(grads_and_vars)
-        else:
-            self.opt = tf.train.AdamOptimizer(learning_rate=self.lr, epsilon=self.eps)
-            self.train_op = self.opt.apply_gradients(grads_and_vars=self.gvs(self.states, self.rewards, self.advantages, self.old_actions, self.old_values, self.old_nlps))
-
-        self.grads_op1 = self.gvs(self.states, self.rewards, self.advantages, self.old_actions, self.old_values, self.old_nlps)
-        grads_op2, _ = tf.clip_by_global_norm(tf.gradients(self.loss, self.params), 0.5)
-        self.grads_op2 = list(zip(grads_op2, self.params))
+        self.opt = tf.train.AdamOptimizer(learning_rate=self.lr, epsilon=self.eps)
+        self.train_op = self.opt.apply_gradients(grads_and_vars=self.gvs(self.states, self.rewards, self.advantages, self.old_actions, self.old_values, self.old_nlps))
 
         global_step = tf.train.get_or_create_global_step()
         self.global_step_op = global_step.assign_add(1)
@@ -142,10 +109,6 @@ class PPOModel:
     def predict(self, state):
         action, value, nlp = self.sess.run([self.actions, self.values, self.nlps1], {self.states:[state]})
 
-        # print ('actions', np.shape(action))
-        # print ('values', np.shape(value))
-        # print ('nlp', np.shape(nlp))
-
         action = np.squeeze(action)
         value = np.squeeze(value)
         nlp = np.squeeze(nlp)
@@ -154,21 +117,12 @@ class PPOModel:
 
     def gvs(self, states, rewards, advantages, old_actions, old_values, old_nlps):
 
-        # grads = tf.gradients(self.loss, self.params)
         grads = tf.gradients(self.loss, [self.logits_bias, self.values_bias] + self.params)
         grads, _ = tf.clip_by_global_norm(grads, 0.5)
-        # [logits_grad, values_grad] = grads
+
         logits_grad = grads[0]
         values_grad = grads[1]
 
-        # logits_grad = logits_grad / self.nbatch
-        # logits_grad, _ = tf.clip_by_global_norm([logits_grad], 0.5) 
-        # logits_grad = tf.reshape(logits_grad, (self.nbatch, 4))
-
-        # values_grad = values_grad / self.nbatch    
-        # values_grad, _ = tf.clip_by_global_norm([values_grad], 0.5) 
-        # values_grad = tf.reshape(values_grad, (self.nbatch, 1))
-        
         logits_back = self.actions_head.backward(self.logits_forward[-2], self.logits_forward[-1], logits_grad)
         logits_gvs  = self.actions_head.gv(self.logits_forward[-2], self.logits_forward[-1], logits_grad)
  
@@ -191,31 +145,6 @@ class PPOModel:
                                      self.old_actions:old_actions, 
                                      self.old_values:old_values, 
                                      self.old_nlps:old_nlps})
-
-    def grads(self, states, rewards, advantages, old_actions, old_values, old_nlps):
-        g1, g2 = self.sess.run([self.grads_op1, self.grads_op2],
-                               feed_dict={self.states:states, 
-                                          self.rewards:rewards, 
-                                          self.advantages:advantages, 
-                                          self.old_actions:old_actions, 
-                                          self.old_values:old_values, 
-                                          self.old_nlps:old_nlps})
-        return g1, g2
-
-    
-    def create_model_tf(self):        
-        conv1 = tf.layers.conv2d(self.states, 32, 8, 4, activation=tf.nn.relu)
-        conv2 = tf.layers.conv2d(conv1, 64, 4, 2, activation=tf.nn.relu)
-        conv3 = tf.layers.conv2d(conv2, 64, 3, 1, activation=tf.nn.relu)
-        flattened = tf.layers.flatten(conv3)
-        fc = tf.layers.dense(flattened, 512, activation=tf.nn.relu)
-        
-        action_logits = tf.layers.dense(fc, 4)
-        action_dists = tf.distributions.Categorical(logits=action_logits)
-        values = tf.squeeze(tf.layers.dense(fc, 1), axis=-1)
-        params = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
-                    
-        return action_logits, action_dists, values, params
 
     def create_model(self, nbatch):
         l1_1 = Convolution(input_sizes=[nbatch, 84, 84, 4], filter_sizes=[8, 8, 4, 32], strides=[1,4,4,1], padding="VALID", name='conv1')

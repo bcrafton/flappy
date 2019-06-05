@@ -17,7 +17,6 @@ if args.gpu >= 0:
     os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
     os.environ["CUDA_VISIBLE_DEVICES"]=str(args.gpu)
 
-
 import numpy as np
 import tensorflow as tf
 import cv2
@@ -150,8 +149,6 @@ for e in range(total_episodes):
         
         if done:
             reward_list.append(round(env.total_reward, 2))
-            #sym = (0 if (env.total_reward < 0.) else 1)
-            #reward_list.append(sym)
             state = env.reset()
 
     # other dude just used next_value=0
@@ -176,32 +173,6 @@ for e in range(total_episodes):
 
     model.set_weights()
 
-    #####################################
-    
-    # s = 0
-    # e = 64
-    # g1, g2 = model.grads(states[s:e], rewards[s:e], advantages[s:e], actions[s:e], values[s:e], nlps[s:e])
-    '''
-    for ii in range(len(g1)):
-        print (ii, np.shape(g1[ii][0]))
-
-    for ii in range(len(g2)):
-        print (ii, np.shape(g2[ii][0]))
-    '''
-    #'''
-    # print ('----------------')
-    # print ('actions', np.std(g1[0][0]), np.std(g1[0][1]))
-    # print ('actions', np.std(g1[1][0]), np.std(g1[1][1]))
-    # print ('values',  np.std(g1[2][0]), np.std(g1[2][1]))
-    # print ('values', g1[3][0], g1[3][1])
-    # print ('fc1',     np.std(g1[4][0]), np.std(g1[4][1]))
-
-    # print ('actions', np.std(g2[8][0]),  np.std(g2[8][1]))
-    # print ('actions', np.std(g2[9][0]),  np.std(g2[9][1]))
-    # print ('values',  np.std(g2[10][0]), np.std(g2[10][1]))
-    # print ('values', g2[11][0], g2[11][1])
-    # print ('fc1',     np.std(g2[6][0]),  np.std(g2[6][1]))
-    #'''
     #####################################
 
 

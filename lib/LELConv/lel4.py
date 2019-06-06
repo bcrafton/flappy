@@ -41,6 +41,9 @@ class LELConv(Layer):
     
     def get_weights(self):
         return []
+
+    def get_feedback(self):
+        assert(False)
         
     def output_shape(self):
         return self.input_shape

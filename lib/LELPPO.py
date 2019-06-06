@@ -18,13 +18,13 @@ from lib.AvgPool import AvgPool
 from lib.Activation import Relu
 from lib.Activation import Linear
 
-class LELConv(Layer):
+class LELPPO(Layer):
 
-    def __init__(self, input_shape, pool_shape, num_classes, name=None):
+    def __init__(self, input_shape, pool_shape, nactions, name=None):
         self.input_shape = input_shape
         self.batch_size, self.h, self.w, self.fin = self.input_shape
         self.pool_shape = pool_shape
-        self.num_classes = num_classes
+        self.nactions = nactions
         self.name = name
 
         l1 = AvgPool(size=self.input_shape, ksize=self.pool_shape, strides=self.pool_shape, padding='SAME')
@@ -33,7 +33,8 @@ class LELConv(Layer):
         l2 = ConvToFullyConnected(input_shape=l2_input_shape)
         
         l3_input_shape = l2.output_shape()
-        l3 = FullyConnected(input_shape=l3_input_shape, size=self.num_classes, init='alexnet', activation=Linear(), bias=0., name=self.name)
+        actions = FullyConnected(input_shape=l3_input_shape, size=self.nactions, init='alexnet', name=self.name + '_actions')
+        values = FullyConnected(input_shape=l3_input_shape, size=1, init='alexnet', name=self.name + '_values')
         
         self.B = Model(layers=[l1, l2, l3])
         

@@ -66,7 +66,7 @@ class PPOModel:
         self.actions        = tf.squeeze(self.pi1.sample(1), axis=0)
         
         self.nlps1          = self.pi1.log_prob(self.actions)
-        self.nlps2          = self.pi2.log_prob(self.old_actions)
+        self.nlps2          = self.pi2.log_prob(self.actions)
 
         ##############################################
 

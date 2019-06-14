@@ -73,8 +73,8 @@ class LELPPO(Layer):
         self.logits_bias = tf.Variable(np.zeros(shape=(self.nbatch, self.nclass)), dtype=tf.float32)
         self.values_bias = tf.Variable(np.zeros(shape=(self.nbatch, 1)), dtype=tf.float32)
         
-        self.actions_model = Model(layers=[l1, l2, actions])
-        self.values_model = Model(layers=[l1, l2, values])
+        # self.actions_model = Model(layers=[l1, l2, actions])
+        # self.values_model = Model(layers=[l1, l2, values])
 
         ####################################################
 
@@ -100,8 +100,13 @@ class LELPPO(Layer):
         return X
         
     def predict(self, X):
-        [logits, logits_forward] = self.actions_model.forward(X) 
-        [values, values_forward] = self.values_model.forward(X)
+        # [logits, logits_forward] = self.actions_model.forward(X) 
+        # [values, values_forward] = self.values_model.forward(X)
+        
+        pool = self.pool.forward(AI)
+        conv2fc = self.conv2fc.forward(pool)
+        logits = self.actions.forward(conv2fc)
+        values = self.values.forward(conv2fc)
         
         values = tf.reshape(values, (-1,))
         actions = sample(logits)
@@ -130,8 +135,15 @@ class LELPPO(Layer):
     ###################################################################   
         
     def lel_backward(self, AI, AO, DO, cache):
-        [logits, logits_forward] = self.actions_model.forward(AI)
-        [values, values_forward] = self.values_model.forward(AI)
+    
+        pool = self.pool.forward(AI)
+        conv2fc = self.conv2fc.forward(pool)
+        logits = self.actions.forward(conv2fc)
+        values = self.values.forward(conv2fc)
+    
+        # [logits, logits_forward] = self.actions_model.forward(AI)
+        # [values, values_forward] = self.values_model.forward(AI)
+        
         logits = logits + self.logits_bias
         values = values + self.values_bias
         values = tf.reshape(values, (-1,))
@@ -149,6 +161,8 @@ class LELPPO(Layer):
         value_loss_1 = tf.squared_difference(clipped_value_estimate, self.rewards)
         value_loss_2 = tf.squared_difference(values, self.rewards)
         value_loss = 0.5 * tf.reduce_mean(tf.maximum(value_loss_1, value_loss_2))
+        
+        ###################################################################
 
         loss = policy_loss + 0.01 * entropy_loss + 1. * value_loss
         # grads = tf.gradients(self.loss, [self.logits_bias, self.values_bias] + self.params)
@@ -157,11 +171,69 @@ class LELPPO(Layer):
         do_logits = grads[0]
         do_values = grads[1]
         
-        dlogits = 
+        # we never call forward in lel, until backwards... forward just returns X.
+        # actually works out nicely.
+        # perhaps we dont actually need a cache then. 
+        # a few cheap redundant computations isnt so bad.
+
+        dlogits = self.actions.backward(conv2fc, logits, do_logits)
+        dvalues = self.values.backward(conv2fc, values, do_values)
+        dconv2fc = self.conv2fc.backward(pool, conv2fc, dlogits + dvalues)
+        dpool = self.pool.backward(AI, pool, dconv2fc)
+        
+        return dpool
         
     def lel_gv(self, AI, AO, DO, cache):
-        # make a cache in lel_backward() above and use it here.
-        assert(False)
+    
+        pool = self.pool.forward(AI)
+        conv2fc = self.conv2fc.forward(pool)
+        logits = self.actions.forward(conv2fc)
+        values = self.values.forward(conv2fc)
+    
+        # [logits, logits_forward] = self.actions_model.forward(AI)
+        # [values, values_forward] = self.values_model.forward(AI)
+        
+        logits = logits + self.logits_bias
+        values = values + self.values_bias
+        values = tf.reshape(values, (-1,))
+        nlps = neg_log_prob(logits, self.old_actions)
+        
+        ratio = tf.exp(nlps - self.old_nlps)
+        ratio = tf.clip_by_value(ratio, 0, 10)
+        surr1 = self.advantages * ratio
+        surr2 = self.advantages * tf.clip_by_value(ratio, 1 - epsilon_decay, 1 + epsilon_decay)
+        policy_loss = -tf.reduce_mean(tf.minimum(surr1, surr2))
+
+        entropy_loss = -policy_entropy(train)
+
+        clipped_value_estimate = self.old_values + tf.clip_by_value(values - self.old_values, -epsilon_decay, epsilon_decay)
+        value_loss_1 = tf.squared_difference(clipped_value_estimate, self.rewards)
+        value_loss_2 = tf.squared_difference(values, self.rewards)
+        value_loss = 0.5 * tf.reduce_mean(tf.maximum(value_loss_1, value_loss_2))
+        
+        ###################################################################
+
+        loss = policy_loss + 0.01 * entropy_loss + 1. * value_loss
+        # grads = tf.gradients(self.loss, [self.logits_bias, self.values_bias] + self.params)
+        grads = tf.gradients(self.loss, [self.logits_bias, self.values_bias])
+        
+        do_logits = grads[0]
+        do_values = grads[1]
+        
+        # we never call forward in lel, until backwards... forward just returns X.
+        # actually works out nicely.
+        # perhaps we dont actually need a cache then. 
+        # a few cheap redundant computations isnt so bad.
+
+        gvs = []
+        dlogits = self.actions.gv(conv2fc, logits, do_logits)
+        dvalues = self.values.gv(conv2fc, values, do_values)
+        # dconv2fc = self.conv2fc.backward(pool, conv2fc, dlogits + dvalues)
+        # dpool = self.pool.backward(AI, pool, dconv2fc)
+        
+        gvs.extend(dlogits, dvalues)
+        
+        return gvs
         
     ###################################################################
         

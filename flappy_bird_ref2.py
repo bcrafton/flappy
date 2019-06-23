@@ -272,6 +272,9 @@ class Main(object):
         self.mini_batch_size = self.batch_size // self.n_mini_batch
         assert (self.batch_size % self.n_mini_batch == 0)
 
+        # batch size = 128 * 8
+        # mini batch size = 128 * 8 / 4
+
         Main._init_tf_session()
         self.workers = [Worker(47 + i) for i in range(self.n_workers)]
         self.obs = np.zeros((self.n_workers, 84, 84, 4), dtype=np.uint8)

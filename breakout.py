@@ -27,13 +27,8 @@ import random
 
 from lib.PPOModel import PPOModel
 
-action_set = [
-    [0, 0],
-    [0, 1],
-    [1, 0],
-    [1, 1],
-]
-action_space = len(action_set)
+####################################
+
 total_episodes = int(1e5)
 
 ####################################
@@ -56,6 +51,72 @@ def returns_advantages (replay_buffer, next_value, gamma=0.99, lam=0.95):
 
 ####################################
 
+'''
+class Game(object):
+
+    def __init__(self, seed: int):
+        self.env = gym.make('BreakoutNoFrameskip-v4')
+        self.env.seed(seed)
+        self.obs_2_max = np.zeros((2, 84, 84, 1), np.uint8)
+        self.obs_4 = np.zeros((84, 84, 4))
+        self.rewards = []
+        self.lives = 0
+
+    def step(self, action):
+        reward = 0.
+        done = None
+
+        for i in range(4):
+            obs, r, done, info = self.env.step(action)
+
+            if i >= 2:
+                self.obs_2_max[i % 2] = self._process_obs(obs)
+
+            reward += r
+            lives = self.env.unwrapped.ale.lives()
+
+            if lives < self.lives:
+                done = True
+                
+            self.lives = lives
+
+            if done:
+                break
+
+        self.rewards.append(reward)
+
+        if done:
+            episode_info = {"reward": sum(self.rewards), "length": len(self.rewards)}
+            self.reset()
+        else:
+            episode_info = None
+
+            obs = self.obs_2_max.max(axis=0)
+            self.obs_4 = np.roll(self.obs_4, shift=-1, axis=-1)
+            self.obs_4[..., -1:] = obs
+
+        return self.obs_4, reward, done, episode_info
+
+    def reset(self):
+        obs = self.env.reset()
+        obs = self._process_obs(obs)
+        self.obs_4[..., 0:] = obs
+        self.obs_4[..., 1:] = obs
+        self.obs_4[..., 2:] = obs
+        self.obs_4[..., 3:] = obs
+        self.rewards = []
+
+        self.lives = self.env.unwrapped.ale.lives()
+
+        return self.obs_4
+
+    @staticmethod
+    def _process_obs(obs):
+        obs = cv2.cvtColor(obs, cv2.COLOR_RGB2GRAY)
+        obs = cv2.resize(obs, (84, 84), interpolation=cv2.INTER_AREA)
+        return obs[:, :, None]  # Shape (84, 84, 1)
+'''
+
 class FlappyBirdEnv:
     def __init__(self):
         self.env = gym.make('BreakoutNoFrameskip-v4')
@@ -63,6 +124,7 @@ class FlappyBirdEnv:
         self.total_reward = 0.0
         self.total_step = 0
         self.state = None
+        self.lives = 0
 
     def reset(self):
         self.total_reward = 0.0
@@ -72,16 +134,27 @@ class FlappyBirdEnv:
         frame = self._process(frame)
         self.state = deque([frame] * 4, maxlen=4)
         
+        self.lives = self.env.unwrapped.ale.lives()
+        
         return np.stack(self.state, axis=2)
     
     def step(self, action):
         cumulated_reward = 0.0
-        for a in action_set[action]:
-            next_frame, reward, done, _ = self.env.step(a)
+        
+        for s in range(4):
+            next_frame, reward, done, _ = self.env.step(action)
+            
             reward = self._reward_shaping(reward)
             cumulated_reward += reward
             self.total_step += 1
             self.total_reward += reward
+            
+            lives = self.env.unwrapped.ale.lives()
+            if lives < self.lives:
+                done = True
+
+            self.lives = lives
+
             if done:
                 break
         
@@ -90,13 +163,16 @@ class FlappyBirdEnv:
         return np.stack(self.state, axis=2), cumulated_reward, done
 
     def _reward_shaping(self, reward):
+        '''
         if  reward > 0.0:
             return 1.0
         elif reward < 0.0:
             return -1.0
         else:
             return 0.01
-
+        '''
+        return reward
+        
     def _process(self, state):
         output = cv2.cvtColor(state, cv2.COLOR_BGR2GRAY)
         output = output[:410, :]

@@ -117,10 +117,10 @@ class PPOModel:
 
         ##############################################
 
-        self.train_op = tf.train.AdamOptimizer(learning_rate=self.lr, epsilon=self.eps).minimize(self.loss)
-        self.train_op1 = tf.train.AdamOptimizer(learning_rate=self.lr, epsilon=self.eps).minimize(self.loss1)
-        self.train_op2 = tf.train.AdamOptimizer(learning_rate=self.lr, epsilon=self.eps).minimize(self.loss2)
-        self.train_op3 = tf.train.AdamOptimizer(learning_rate=self.lr, epsilon=self.eps).minimize(self.loss3)
+        self.train_op = tf.train.AdamOptimizer(learning_rate=self.lr, epsilon=self.eps).minimize(self.loss, var_list=tf.trainable_variables('l4'))
+        self.train_op1 = tf.train.AdamOptimizer(learning_rate=self.lr, epsilon=self.eps).minimize(self.loss1, var_list=tf.trainable_variables('l1'))
+        self.train_op2 = tf.train.AdamOptimizer(learning_rate=self.lr, epsilon=self.eps).minimize(self.loss2, var_list=tf.trainable_variables('l2'))
+        self.train_op3 = tf.train.AdamOptimizer(learning_rate=self.lr, epsilon=self.eps).minimize(self.loss3, var_list=tf.trainable_variables('l3'))
 
         global_step = tf.train.get_or_create_global_step()
         self.global_step_op = global_step.assign_add(1)

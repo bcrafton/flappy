@@ -29,6 +29,8 @@ class PPOModel:
         self.lr = lr
         self.eps = eps
 
+        ##############################################
+
         self.states = tf.placeholder("float", [None, 84, 84, 4])
         self.advantages = tf.placeholder("float", [None])
         self.rewards = tf.placeholder("float", [None]) 
@@ -37,11 +39,22 @@ class PPOModel:
         self.old_values = tf.placeholder("float", [None]) 
         self.old_nlps = tf.placeholder("float", [None])
 
-        self.values, self.pi, self.params = self.create_model()
-        self.values = tf.reshape(self.values, (-1,))
-        
         ##############################################
 
+        conv1 = tf.layers.conv2d(self.states, 32, 8, 4, activation=tf.nn.relu)
+        conv2 = tf.layers.conv2d(conv1, 64, 4, 2, activation=tf.nn.relu)
+        conv3 = tf.layers.conv2d(conv2, 64, 3, 1, activation=tf.nn.relu)
+        flattened = tf.layers.flatten(conv3)
+        fc = tf.layers.dense(flattened, 512, activation=tf.nn.relu)
+
+        self.values = tf.squeeze(tf.layers.dense(fc, 1), axis=-1)
+        self.action_logits = tf.layers.dense(fc, 4)
+        self.action_dists = tf.distributions.Categorical(logits=self.action_logits)
+        self.pi = self.action_dists
+        
+        ##############################################
+        
+        # self.values = tf.reshape(self.values, (-1,))
         self.actions = tf.squeeze(self.pi.sample(1), axis=0)        
         self.nlps1 = self.pi.log_prob(self.actions)
         self.nlps2 = self.pi.log_prob(self.old_actions)
@@ -100,21 +113,6 @@ class PPOModel:
                                      self.old_actions:old_actions, 
                                      self.old_values:old_values, 
                                      self.old_nlps:old_nlps})
-
-    def create_model(self):
-        conv1 = tf.layers.conv2d(self.states, 32, 8, 4, activation=tf.nn.relu)
-        conv2 = tf.layers.conv2d(conv1, 64, 4, 2, activation=tf.nn.relu)
-        conv3 = tf.layers.conv2d(conv2, 64, 3, 1, activation=tf.nn.relu)
-        flattened = tf.layers.flatten(conv3)
-        fc = tf.layers.dense(flattened, 512, activation=tf.nn.relu)
-
-        values = tf.squeeze(tf.layers.dense(fc, 1), axis=-1)
-        action_logits = tf.layers.dense(fc, 4)
-        action_dists = tf.distributions.Categorical(logits=action_logits)
-
-        params = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
-        
-        return values, action_dists, params
 
     ####################################################################
         

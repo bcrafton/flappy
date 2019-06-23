@@ -17,7 +17,7 @@ from lib.Activation import Relu
 from lib.Activation import Linear
 
 class PPOModel:
-    def __init__(self, sess, nbatch, nclass, epsilon, decay_max, lr=2.5e-4, eps=1e-2):
+    def __init__(self, sess, nbatch, nclass, epsilon, decay_max, lr=2.5e-4, eps=1e-2, alg='bp'):
 
         self.sess = sess
         self.nbatch = nbatch
@@ -28,6 +28,7 @@ class PPOModel:
         self.decay_max = decay_max
         self.lr = lr
         self.eps = eps
+        self.alg = alg
 
         ##############################################
 
@@ -117,10 +118,15 @@ class PPOModel:
 
         ##############################################
 
-        self.train_op = tf.train.AdamOptimizer(learning_rate=self.lr, epsilon=self.eps).minimize(self.loss, var_list=tf.trainable_variables('l4'))
-        self.train_op1 = tf.train.AdamOptimizer(learning_rate=self.lr, epsilon=self.eps).minimize(self.loss1, var_list=tf.trainable_variables('l1'))
-        self.train_op2 = tf.train.AdamOptimizer(learning_rate=self.lr, epsilon=self.eps).minimize(self.loss2, var_list=tf.trainable_variables('l2'))
-        self.train_op3 = tf.train.AdamOptimizer(learning_rate=self.lr, epsilon=self.eps).minimize(self.loss3, var_list=tf.trainable_variables('l3'))
+        if self.alg == 'bp':
+            self.train_op = tf.train.AdamOptimizer(learning_rate=self.lr, epsilon=self.eps).minimize(self.loss)
+        elif self.alg == 'lel':
+            self.train_op = tf.train.AdamOptimizer(learning_rate=self.lr, epsilon=self.eps).minimize(self.loss, var_list=tf.trainable_variables('l4'))
+            self.train_op1 = tf.train.AdamOptimizer(learning_rate=self.lr, epsilon=self.eps).minimize(self.loss1, var_list=tf.trainable_variables('l1'))
+            self.train_op2 = tf.train.AdamOptimizer(learning_rate=self.lr, epsilon=self.eps).minimize(self.loss2, var_list=tf.trainable_variables('l2'))
+            self.train_op3 = tf.train.AdamOptimizer(learning_rate=self.lr, epsilon=self.eps).minimize(self.loss3, var_list=tf.trainable_variables('l3'))
+        else:
+            assert (False)
 
         global_step = tf.train.get_or_create_global_step()
         self.global_step_op = global_step.assign_add(1)
@@ -143,9 +149,12 @@ class PPOModel:
         return action, value, nlp
 
     def train(self, states, rewards, advantages, old_actions, old_values, old_nlps):
-        # self.train_op.run(feed_dict={self.states:states, self.rewards:rewards, self.advantages:advantages, self.old_actions:old_actions, self.old_values:old_values, self.old_nlps:old_nlps})
-        # self.train_op.run(feed_dict={self.states:states, self.rewards:rewards, self.advantages:advantages, self.old_actions:old_actions, self.old_values:old_values, self.old_nlps:old_nlps})
-        self.sess.run([self.train_op, self.train_op1, self.train_op2, self.train_op3], feed_dict={self.states:states, self.rewards:rewards, self.advantages:advantages, self.old_actions:old_actions, self.old_values:old_values, self.old_nlps:old_nlps})
+        if self.alg == 'bp':
+            self.sess.run([self.train_op], feed_dict={self.states:states, self.rewards:rewards, self.advantages:advantages, self.old_actions:old_actions, self.old_values:old_values, self.old_nlps:old_nlps})
+        elif self.alg == 'lel':
+            self.sess.run([self.train_op, self.train_op1, self.train_op2, self.train_op3], feed_dict={self.states:states, self.rewards:rewards, self.advantages:advantages, self.old_actions:old_actions, self.old_values:old_values, self.old_nlps:old_nlps})
+        else:
+            assert (False)
 
     ####################################################################
         

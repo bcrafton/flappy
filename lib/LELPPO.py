@@ -96,6 +96,17 @@ class LELPPO(Layer):
     def num_params(self):
         return 0
         
+    def place_holders(self):
+        place_holders_dict = {}
+        place_holders_dict[self.name + '_advantages'] = self.advantages
+        place_holders_dict[self.name + '_rewards'] = self.rewards
+        place_holders_dict[self.name + '_old_actions'] = self.old_actions
+        place_holders_dict[self.name + '_old_values'] = self.old_values
+        place_holders_dict[self.name + '_old_nlps'] = self.old_nlps
+        return place_holders_dict
+        
+    ###################################################################
+        
     def forward(self, X):
         return X
         

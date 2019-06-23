@@ -37,36 +37,14 @@ class PPOModel:
         self.old_values = tf.placeholder("float", [None]) 
         self.old_nlps = tf.placeholder("float", [None])
 
-        self.actions_model, self.values_model, self.headless, self.actions_head, self.values_head = self.create_model(nbatch)
-        weights1 = self.actions_model.get_weights()
-        weights2 = self.values_model.get_weights()
-        weights = {}
-        weights.update(weights1)
-        weights.update(weights2)
-        self.params = []
-        for key in weights.keys():
-            self.params.append(weights[key])
-
+        self.values, self.pi, self.params = self.create_model()
+        self.values = tf.reshape(self.values, (-1,))
+        
         ##############################################
 
-        [self.logits, self.logits_forward] = self.actions_model.forward(self.states)
-        [self.values, self.values_forward] = self.values_model.forward(self.states)
-
-        self.logits_train = self.logits + self.logits_bias
-        self.values_train = self.values + self.values_bias
-        
-        self.values       = tf.reshape(self.values,       (-1,))
-        self.values_train = tf.reshape(self.values_train, (-1,))
-
-        ##############################################
-
-        self.pi1 = tf.distributions.Categorical(logits=self.logits)
-        self.pi2 = tf.distributions.Categorical(logits=self.logits_train)
-
-        self.actions        = tf.squeeze(self.pi1.sample(1), axis=0)
-        
-        self.nlps1          = self.pi1.log_prob(self.actions)
-        self.nlps2          = self.pi2.log_prob(self.old_actions)
+        self.actions = tf.squeeze(self.pi.sample(1), axis=0)        
+        self.nlps1 = self.pi.log_prob(self.actions)
+        self.nlps2 = self.pi.log_prob(self.old_actions)
 
         ##############################################
 
@@ -81,11 +59,11 @@ class PPOModel:
         surr2 = self.advantages * tf.clip_by_value(ratio, 1 - epsilon_decay, 1 + epsilon_decay)
         policy_loss = -tf.reduce_mean(tf.minimum(surr1, surr2))
 
-        entropy_loss = -tf.reduce_mean(self.pi2.entropy())
+        entropy_loss = -tf.reduce_mean(self.pi.entropy())
 
-        clipped_value_estimate = self.old_values + tf.clip_by_value(self.values_train - self.old_values, -epsilon_decay, epsilon_decay)
+        clipped_value_estimate = self.old_values + tf.clip_by_value(self.values - self.old_values, -epsilon_decay, epsilon_decay)
         value_loss_1 = tf.squared_difference(clipped_value_estimate, self.rewards)
-        value_loss_2 = tf.squared_difference(self.values_train, self.rewards)
+        value_loss_2 = tf.squared_difference(self.values, self.rewards)
         value_loss = 0.5 * tf.reduce_mean(tf.maximum(value_loss_1, value_loss_2))
 
         self.loss = policy_loss + 0.01 * entropy_loss + 1. * value_loss
@@ -93,7 +71,7 @@ class PPOModel:
         ##############################################
 
         self.opt = tf.train.AdamOptimizer(learning_rate=self.lr, epsilon=self.eps)
-        self.train_op = self.opt.apply_gradients(grads_and_vars=self.gvs(self.states, self.rewards, self.advantages, self.old_actions, self.old_values, self.old_nlps))
+        self.train_op = self.opt.minimize(self.loss)
 
         global_step = tf.train.get_or_create_global_step()
         self.global_step_op = global_step.assign_add(1)
@@ -115,29 +93,6 @@ class PPOModel:
         
         return action, value, nlp
 
-    def gvs(self, states, rewards, advantages, old_actions, old_values, old_nlps):
-
-        grads = tf.gradients(self.loss, [self.logits_bias, self.values_bias] + self.params)
-        grads, _ = tf.clip_by_global_norm(grads, 0.5)
-
-        logits_grad = grads[0]
-        values_grad = grads[1]
-
-        logits_back = self.actions_head.backward(self.logits_forward[-2], self.logits_forward[-1], logits_grad)
-        logits_gvs  = self.actions_head.gv(self.logits_forward[-2], self.logits_forward[-1], logits_grad)
- 
-        values_back = self.values_head.backward(self.values_forward[-2], self.values_forward[-1], values_grad)
-        values_gvs  = self.values_head.gv(self.values_forward[-2], self.values_forward[-1], values_grad)
-
-        gvs = self.headless.backward(states, self.logits_forward, logits_back + values_back)
-
-        grads_and_vars = []
-        grads_and_vars.extend(logits_gvs)
-        grads_and_vars.extend(values_gvs)
-        grads_and_vars.extend(gvs)
-
-        return grads_and_vars
-
     def train(self, states, rewards, advantages, old_actions, old_values, old_nlps):
         self.train_op.run(feed_dict={self.states:states, 
                                      self.rewards:rewards, 
@@ -146,49 +101,20 @@ class PPOModel:
                                      self.old_values:old_values, 
                                      self.old_nlps:old_nlps})
 
-    def create_model(self, nbatch):
-        l1_1 = Convolution(input_sizes=[nbatch, 84, 84, 4], filter_sizes=[8, 8, 4, 32], strides=[1,4,4,1], padding="VALID", name='conv1')
-        l1_2 = Relu()
+    def create_model(self):
+        conv1 = tf.layers.conv2d(self.states, 32, 8, 4, activation=tf.nn.relu)
+        conv2 = tf.layers.conv2d(conv1, 64, 4, 2, activation=tf.nn.relu)
+        conv3 = tf.layers.conv2d(conv2, 64, 3, 1, activation=tf.nn.relu)
+        flattened = tf.layers.flatten(conv3)
+        fc = tf.layers.dense(flattened, 512, activation=tf.nn.relu)
 
-        l2_1 = Convolution(input_sizes=[nbatch, 20, 20, 32], filter_sizes=[4, 4, 32, 64], strides=[1,2,2,1], padding="VALID", name='conv2')
-        l2_2 = Relu()
+        values = tf.squeeze(tf.layers.dense(fc, 1), axis=-1)
+        action_logits = tf.layers.dense(fc, 4)
+        action_dists = tf.distributions.Categorical(logits=action_logits)
 
-        l3_1 = Convolution(input_sizes=[nbatch, 9, 9, 64], filter_sizes=[3, 3, 64, 64], strides=[1,1,1,1], padding="VALID", name='conv3')
-        l3_2 = Relu()
-
-        l4 = ConvToFullyConnected(input_shape=[7, 7, 64])
-
-        l5_1 = FullyConnected(input_shape=7*7*64, size=512, name='fc1')
-        l5_2 = Relu()
-
-        actions = FullyConnected(input_shape=512, size=4, name='action')
-        values = FullyConnected(input_shape=512, size=1, name='values')
-
-        actions_model = Model(layers=[l1_1, l1_2,       \
-                                      l2_1, l2_2,       \
-                                      l3_1, l3_2,       \
-                                      l4,               \
-                                      l5_1, l5_2,       \
-                                      actions           \
-                                      ])
-
-        values_model = Model(layers=[l1_1, l1_2,       \
-                                     l2_1, l2_2,       \
-                                     l3_1, l3_2,       \
-                                     l4,               \
-                                     l5_1, l5_2,       \
-                                     values            \
-                                     ])
-
-        headless = Model(layers=[l1_1, l1_2,       \
-                                 l2_1, l2_2,       \
-                                 l3_1, l3_2,       \
-                                 l4,               \
-                                 l5_1, l5_2        \
-                                 ])
-
-        return actions_model, values_model, headless, actions, values
-
+        params = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
+        
+        return values, action_dists, params
 
     ####################################################################
         

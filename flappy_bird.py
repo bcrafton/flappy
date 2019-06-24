@@ -12,6 +12,7 @@ parser.add_argument('--batch_size', type=int, default=64)
 parser.add_argument('--mini_batch_size', type=int, default=512)
 parser.add_argument('--name', type=str, default="flappy")
 parser.add_argument('--train', type=int, default=1)
+parser.add_argument('--render', type=int, default=0)
 args = parser.parse_args()
 
 if args.gpu >= 0:
@@ -85,6 +86,9 @@ class FlappyBirdEnv:
             self.total_reward += reward
             if done:
                 break
+
+            if args.render:
+                self.env.render()
         
         next_frame = self._process(next_frame)
         self.state.append(next_frame)

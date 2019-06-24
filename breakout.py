@@ -186,7 +186,8 @@ sess = tf.InteractiveSession()
 
 ####################################
 
-model = PPOModel(sess=sess, nbatch=64, nclass=4, epsilon=0.1, decay_max=8000, lr=args.lr, eps=args.eps, restore='./weights/breakout.ckpt')
+model = PPOModel(sess=sess, nbatch=64, nclass=4, epsilon=0.1, decay_max=8000, lr=args.lr, eps=args.eps)
+# model = PPOModel(sess=sess, nbatch=64, nclass=4, epsilon=0.1, decay_max=8000, lr=args.lr, eps=args.eps, restore='./weights/breakout.ckpt')
 
 replay_buffer = []
 env = FlappyBirdEnv()

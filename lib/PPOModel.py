@@ -17,7 +17,7 @@ from lib.Activation import Relu
 from lib.Activation import Linear
 
 class PPOModel:
-    def __init__(self, sess, nbatch, nclass, epsilon, decay_max, lr=2.5e-4, eps=1e-2, alg='bp'):
+    def __init__(self, sess, nbatch, nclass, epsilon, decay_max, lr=2.5e-4, eps=1e-2, alg='bp', restore=None):
 
         self.sess = sess
         self.nbatch = nbatch
@@ -29,6 +29,7 @@ class PPOModel:
         self.lr = lr
         self.eps = eps
         self.alg = alg
+        self.restore = restore
 
         ##############################################
 
@@ -42,25 +43,25 @@ class PPOModel:
 
         ##############################################
         with tf.variable_scope('l1'):
-            conv1 = tf.layers.conv2d(self.states, 32, 8, 4, activation=tf.nn.relu)
+            conv1 = tf.layers.conv2d(self.states, 32, 8, 4, activation=tf.nn.relu, name='conv1')
             flat1 = tf.layers.flatten(conv1)
             self.value1 = tf.squeeze(tf.layers.dense(flat1, 1), axis=-1)
         
         with tf.variable_scope('l2'):
-            conv2 = tf.layers.conv2d(conv1, 64, 4, 2, activation=tf.nn.relu)
+            conv2 = tf.layers.conv2d(conv1, 64, 4, 2, activation=tf.nn.relu, name='conv2')
             flat2 = tf.layers.flatten(conv2)
             self.value2 = tf.squeeze(tf.layers.dense(flat2, 1), axis=-1)
 
         with tf.variable_scope('l3'):
-            conv3 = tf.layers.conv2d(conv2, 64, 3, 1, activation=tf.nn.relu)
+            conv3 = tf.layers.conv2d(conv2, 64, 3, 1, activation=tf.nn.relu, name='conv3')
             flat3 = tf.layers.flatten(conv3)
             self.value3 = tf.squeeze(tf.layers.dense(flat3, 1), axis=-1)
 
         with tf.variable_scope('l4'):
             flattened = tf.layers.flatten(conv3)
-            fc = tf.layers.dense(flattened, 512, activation=tf.nn.relu)
-            self.values = tf.squeeze(tf.layers.dense(fc, 1), axis=-1)
-            self.action_logits = tf.layers.dense(fc, 4)
+            fc = tf.layers.dense(flattened, 512, activation=tf.nn.relu, name='fc1')
+            self.values = tf.squeeze(tf.layers.dense(fc, 1, name='values'), axis=-1)
+            self.action_logits = tf.layers.dense(fc, 4, name='actions')
 
         self.action_dists = tf.distributions.Categorical(logits=self.action_logits)
         self.pi = self.action_dists
@@ -128,12 +129,34 @@ class PPOModel:
         else:
             assert (False)
 
+        ##############################################
+
         global_step = tf.train.get_or_create_global_step()
         self.global_step_op = global_step.assign_add(1)
         
-    def get_weights(self):
-        assert(False)
-
+        ##############################################
+        
+        self.saver = tf.train.Saver()
+        
+        if self.restore:
+            self.saver.restore(sess=self.sess, save_path=self.restore)
+        
+        '''
+        self.get_conv1 = tf.get_variable('conv1')
+        self.get_conv2 = tf.get_variable('conv1')
+        self.get_conv3 = tf.get_variable('conv1')
+        self.get_fc1 = tf.get_variable('fc1')
+        self.get_values = tf.get_variable('values')
+        self.get_actions = tf.get_variable('actions')
+        '''
+        ##############################################
+        
+    def save_weights(self, name):
+        # [conv1, conv2, conv3, fc1, values, actions] = self.sess.run([self.get_conv1, self.get_conv2, self.get_conv3, self.get_fc1, self.get_values, self.get_actions])
+        # weights = {}
+        filename = './weights/%s.ckpt' % (name)
+        self.saver.save(sess=self.sess, save_path=filename)
+        
     def set_weights(self):
         self.sess.run(self.global_step_op, feed_dict={})
 

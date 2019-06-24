@@ -116,10 +116,15 @@ sess = tf.InteractiveSession()
 
 ####################################
 
+if args.alg == 'bp':
+    weights_directory = './weights/flappy_bird/flappy_bird.ckpt'
+elif args.alg == 'lel':
+    weights_directory = './weights/flappy_bird_lel/flappy_bird.ckpt'
+
 if args.train:
     model = PPOModel(sess=sess, nbatch=64, nclass=4, epsilon=0.1, decay_max=8000, lr=args.lr, eps=args.eps, alg=args.alg, train=args.train)
 else:
-    model = PPOModel(sess=sess, nbatch=64, nclass=4, epsilon=0.1, decay_max=8000, lr=args.lr, eps=args.eps, alg=args.alg, restore='./weights/flappy_bird/flappy_bird.ckpt', train=args.train)
+    model = PPOModel(sess=sess, nbatch=64, nclass=4, epsilon=0.1, decay_max=8000, lr=args.lr, eps=args.eps, alg=args.alg, restore=weights_directory, train=args.train)
 
 replay_buffer = []
 env = FlappyBirdEnv()
@@ -186,7 +191,7 @@ for e in range(total_episodes):
         model.set_weights()
 
         if ((e + 1) % 1000 == 0):
-            model.save_weights('./weights/flappy_bird/flappy_bird.ckpt')
+            model.save_weights(weights_directory)
 
 
 

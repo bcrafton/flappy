@@ -17,19 +17,18 @@ from lib.Activation import Relu
 from lib.Activation import Linear
 
 class PPOModel:
-    def __init__(self, sess, nbatch, nclass, epsilon, decay_max, lr=2.5e-4, eps=1e-2, alg='bp', restore=None):
+    def __init__(self, sess, nbatch, nclass, epsilon, decay_max, lr=2.5e-4, eps=1e-2, alg='bp', restore=None, train=1):
 
         self.sess = sess
         self.nbatch = nbatch
         self.nclass = nclass
-        self.logits_bias = tf.Variable(np.zeros(shape=(self.nbatch, self.nclass)), dtype=tf.float32)
-        self.values_bias = tf.Variable(np.zeros(shape=(self.nbatch, 1)), dtype=tf.float32)
         self.epsilon = epsilon
         self.decay_max = decay_max
         self.lr = lr
         self.eps = eps
         self.alg = alg
         self.restore = restore
+        self.train_flag = train
 
         ##############################################
 
@@ -68,8 +67,11 @@ class PPOModel:
         
         ##############################################
         
-        # self.values = tf.reshape(self.values, (-1,))
-        self.actions = tf.squeeze(self.pi.sample(1), axis=0)        
+        if self.train_flag:
+            self.actions = tf.squeeze(self.pi.sample(1), axis=0)
+        else:
+            self.actions = self.pi.mode()
+
         self.nlps1 = self.pi.log_prob(self.actions)
         self.nlps2 = self.pi.log_prob(self.old_actions)
 

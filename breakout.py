@@ -11,6 +11,7 @@ parser.add_argument('--epochs', type=int, default=5)
 parser.add_argument('--batch_size', type=int, default=64)
 parser.add_argument('--mini_batch_size', type=int, default=512)
 parser.add_argument('--name', type=str, default="flappy")
+parser.add_argument('--train', type=int, default=1)
 args = parser.parse_args()
 
 if args.gpu >= 0:
@@ -50,72 +51,6 @@ def returns_advantages (replay_buffer, next_value, gamma=0.99, lam=0.95):
     return returns, advantages
 
 ####################################
-
-'''
-class Game(object):
-
-    def __init__(self, seed: int):
-        self.env = gym.make('BreakoutNoFrameskip-v4')
-        self.env.seed(seed)
-        self.obs_2_max = np.zeros((2, 84, 84, 1), np.uint8)
-        self.obs_4 = np.zeros((84, 84, 4))
-        self.rewards = []
-        self.lives = 0
-
-    def step(self, action):
-        reward = 0.
-        done = None
-
-        for i in range(4):
-            obs, r, done, info = self.env.step(action)
-
-            if i >= 2:
-                self.obs_2_max[i % 2] = self._process_obs(obs)
-
-            reward += r
-            lives = self.env.unwrapped.ale.lives()
-
-            if lives < self.lives:
-                done = True
-                
-            self.lives = lives
-
-            if done:
-                break
-
-        self.rewards.append(reward)
-
-        if done:
-            episode_info = {"reward": sum(self.rewards), "length": len(self.rewards)}
-            self.reset()
-        else:
-            episode_info = None
-
-            obs = self.obs_2_max.max(axis=0)
-            self.obs_4 = np.roll(self.obs_4, shift=-1, axis=-1)
-            self.obs_4[..., -1:] = obs
-
-        return self.obs_4, reward, done, episode_info
-
-    def reset(self):
-        obs = self.env.reset()
-        obs = self._process_obs(obs)
-        self.obs_4[..., 0:] = obs
-        self.obs_4[..., 1:] = obs
-        self.obs_4[..., 2:] = obs
-        self.obs_4[..., 3:] = obs
-        self.rewards = []
-
-        self.lives = self.env.unwrapped.ale.lives()
-
-        return self.obs_4
-
-    @staticmethod
-    def _process_obs(obs):
-        obs = cv2.cvtColor(obs, cv2.COLOR_RGB2GRAY)
-        obs = cv2.resize(obs, (84, 84), interpolation=cv2.INTER_AREA)
-        return obs[:, :, None]  # Shape (84, 84, 1)
-'''
 
 class FlappyBirdEnv:
     def __init__(self):
@@ -163,14 +98,6 @@ class FlappyBirdEnv:
         return np.stack(self.state, axis=2), cumulated_reward, done
 
     def _reward_shaping(self, reward):
-        '''
-        if  reward > 0.0:
-            return 1.0
-        elif reward < 0.0:
-            return -1.0
-        else:
-            return 0.01
-        '''
         return reward
         
     def _process(self, state):
@@ -186,8 +113,10 @@ sess = tf.InteractiveSession()
 
 ####################################
 
-model = PPOModel(sess=sess, nbatch=64, nclass=4, epsilon=0.1, decay_max=8000, lr=args.lr, eps=args.eps)
-# model = PPOModel(sess=sess, nbatch=64, nclass=4, epsilon=0.1, decay_max=8000, lr=args.lr, eps=args.eps, restore='./weights/breakout/breakout.ckpt')
+if args.train:
+    model = PPOModel(sess=sess, nbatch=64, nclass=4, epsilon=0.1, decay_max=8000, lr=args.lr, eps=args.eps, train=args.train)
+else:
+    model = PPOModel(sess=sess, nbatch=64, nclass=4, epsilon=0.1, decay_max=8000, lr=args.lr, eps=args.eps, restore='./weights/breakout/breakout.ckpt', train=args.train)
 
 replay_buffer = []
 env = FlappyBirdEnv()
@@ -253,7 +182,8 @@ for e in range(total_episodes):
     #####################################
     
     if ((e + 1) % 1000 == 0):
-        model.save_weights('./weights/breakout/breakout.ckpt')
+        if args.train:
+            model.save_weights('./weights/breakout/breakout.ckpt')
 
 
 

@@ -11,6 +11,7 @@ parser.add_argument('--epochs', type=int, default=5)
 parser.add_argument('--batch_size', type=int, default=64)
 parser.add_argument('--mini_batch_size', type=int, default=512)
 parser.add_argument('--name', type=str, default="flappy")
+parser.add_argument('--train', type=int, default=1)
 args = parser.parse_args()
 
 if args.gpu >= 0:
@@ -110,8 +111,10 @@ sess = tf.InteractiveSession()
 
 ####################################
 
-model = PPOModel(sess=sess, nbatch=64, nclass=4, epsilon=0.1, decay_max=8000, lr=args.lr, eps=args.eps)
-# model = PPOModel(sess=sess, nbatch=64, nclass=4, epsilon=0.1, decay_max=8000, lr=args.lr, eps=args.eps, restore='./weights/flappy_bird/flappy_bird.ckpt')
+if args.train:
+    model = PPOModel(sess=sess, nbatch=64, nclass=4, epsilon=0.1, decay_max=8000, lr=args.lr, eps=args.eps, train=args.train)
+else:
+    model = PPOModel(sess=sess, nbatch=64, nclass=4, epsilon=0.1, decay_max=8000, lr=args.lr, eps=args.eps, restore='./weights/flappy_bird/flappy_bird.ckpt', train=args.train)
 
 replay_buffer = []
 env = FlappyBirdEnv()
@@ -158,26 +161,26 @@ for e in range(total_episodes):
 
     #####################################
 
-    states = [d['s'] for d in replay_buffer]
-    rewards = rets
-    advantages = advs
-    advantages = (advantages - np.mean(advantages)) / (np.std(advantages) + 1e-8)
-    actions = [d['a'] for d in replay_buffer]
-    values = [d['v'] for d in replay_buffer]
-    nlps = [d['n'] for d in replay_buffer]
+    if args.train:
     
-    for _ in range(args.epochs):
-        for batch in range(0, args.mini_batch_size, args.batch_size):
-            a = batch
-            b = batch + args.batch_size
-            model.train(states[a:b], rewards[a:b], advantages[a:b], actions[a:b], values[a:b], nlps[a:b])
+        states = [d['s'] for d in replay_buffer]
+        rewards = rets
+        advantages = advs
+        advantages = (advantages - np.mean(advantages)) / (np.std(advantages) + 1e-8)
+        actions = [d['a'] for d in replay_buffer]
+        values = [d['v'] for d in replay_buffer]
+        nlps = [d['n'] for d in replay_buffer]
+        
+        for _ in range(args.epochs):
+            for batch in range(0, args.mini_batch_size, args.batch_size):
+                a = batch
+                b = batch + args.batch_size
+                model.train(states[a:b], rewards[a:b], advantages[a:b], actions[a:b], values[a:b], nlps[a:b])
 
-    model.set_weights()
+        model.set_weights()
 
-    #####################################
-
-    if ((e + 1) % 1000 == 0):
-        model.save_weights('./weights/flappy_bird/flappy_bird.ckpt')
+        if ((e + 1) % 1000 == 0):
+            model.save_weights('./weights/flappy_bird/flappy_bird.ckpt')
 
 
 

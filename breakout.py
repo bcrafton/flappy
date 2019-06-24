@@ -29,7 +29,7 @@ from lib.PPOModel import PPOModel
 
 ####################################
 
-total_episodes = int(1e5)
+total_episodes = int(1e4)
 
 ####################################
 

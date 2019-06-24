@@ -151,10 +151,10 @@ class PPOModel:
         '''
         ##############################################
         
-    def save_weights(self, name):
+    def save_weights(self, filename):
         # [conv1, conv2, conv3, fc1, values, actions] = self.sess.run([self.get_conv1, self.get_conv2, self.get_conv3, self.get_fc1, self.get_values, self.get_actions])
         # weights = {}
-        filename = './weights/%s.ckpt' % (name)
+        
         self.saver.save(sess=self.sess, save_path=filename)
         
     def set_weights(self):

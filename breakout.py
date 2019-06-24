@@ -187,7 +187,7 @@ sess = tf.InteractiveSession()
 ####################################
 
 model = PPOModel(sess=sess, nbatch=64, nclass=4, epsilon=0.1, decay_max=8000, lr=args.lr, eps=args.eps)
-# model = PPOModel(sess=sess, nbatch=64, nclass=4, epsilon=0.1, decay_max=8000, lr=args.lr, eps=args.eps, restore='./weights/breakout.ckpt')
+# model = PPOModel(sess=sess, nbatch=64, nclass=4, epsilon=0.1, decay_max=8000, lr=args.lr, eps=args.eps, restore='./weights/breakout/breakout.ckpt')
 
 replay_buffer = []
 env = FlappyBirdEnv()
@@ -253,7 +253,7 @@ for e in range(total_episodes):
     #####################################
     
     if ((e + 1) % 1000 == 0):
-        model.save_weights('breakout')
+        model.save_weights('./weights/breakout/breakout.ckpt')
 
 
 

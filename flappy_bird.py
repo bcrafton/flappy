@@ -111,7 +111,7 @@ sess = tf.InteractiveSession()
 ####################################
 
 model = PPOModel(sess=sess, nbatch=64, nclass=4, epsilon=0.1, decay_max=8000, lr=args.lr, eps=args.eps)
-# model = PPOModel(sess=sess, nbatch=64, nclass=4, epsilon=0.1, decay_max=8000, lr=args.lr, eps=args.eps, restore='./weights/flappy_bird.ckpt')
+# model = PPOModel(sess=sess, nbatch=64, nclass=4, epsilon=0.1, decay_max=8000, lr=args.lr, eps=args.eps, restore='./weights/flappy_bird/flappy_bird.ckpt')
 
 replay_buffer = []
 env = FlappyBirdEnv()
@@ -177,7 +177,7 @@ for e in range(total_episodes):
     #####################################
 
     if ((e + 1) % 1000 == 0):
-        model.save_weights('flappy_bird')
+        model.save_weights('./weights/flappy_bird/flappy_bird.ckpt')
 
 
 

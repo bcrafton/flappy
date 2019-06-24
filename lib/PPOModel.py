@@ -162,7 +162,7 @@ class PPOModel:
     def set_weights(self):
         self.sess.run(self.global_step_op, feed_dict={})
 
-    ####################################################################
+    ##############################################
 
     def predict(self, state):
         action, value, nlp = self.sess.run([self.actions, self.values, self.nlps1], {self.states:[state]})
@@ -172,6 +172,8 @@ class PPOModel:
         nlp = np.squeeze(nlp)
         
         return action, value, nlp
+        
+    ##############################################
 
     def train(self, states, rewards, advantages, old_actions, old_values, old_nlps):
         if self.alg == 'bp':
@@ -181,7 +183,7 @@ class PPOModel:
         else:
             assert (False)
 
-    ####################################################################
+    ##############################################
         
         
         

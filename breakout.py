@@ -124,7 +124,8 @@ state = env.reset()
 
 ####################################
 
-sess.run(tf.initialize_all_variables())
+if args.train:
+    sess.run(tf.initialize_all_variables())
 
 ####################################
 

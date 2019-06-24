@@ -13,6 +13,7 @@ parser.add_argument('--mini_batch_size', type=int, default=512)
 parser.add_argument('--name', type=str, default="flappy")
 parser.add_argument('--train', type=int, default=1)
 parser.add_argument('--render', type=int, default=0)
+parser.add_argument('--alg', type=str, default="bp")
 args = parser.parse_args()
 
 if args.gpu >= 0:
@@ -118,9 +119,9 @@ sess = tf.InteractiveSession()
 ####################################
 
 if args.train:
-    model = PPOModel(sess=sess, nbatch=64, nclass=4, epsilon=0.1, decay_max=8000, lr=args.lr, eps=args.eps, train=args.train)
+    model = PPOModel(sess=sess, nbatch=64, nclass=4, epsilon=0.1, decay_max=8000, lr=args.lr, eps=args.eps, alg=args.alg, train=args.train)
 else:
-    model = PPOModel(sess=sess, nbatch=64, nclass=4, epsilon=0.1, decay_max=8000, lr=args.lr, eps=args.eps, restore='./weights/breakout/breakout.ckpt', train=args.train)
+    model = PPOModel(sess=sess, nbatch=64, nclass=4, epsilon=0.1, decay_max=8000, lr=args.lr, eps=args.eps, alg=args.alg, restore='./weights/breakout/breakout.ckpt', train=args.train)
 
 replay_buffer = []
 env = FlappyBirdEnv()

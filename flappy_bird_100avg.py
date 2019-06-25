@@ -201,10 +201,10 @@ else:
             action, _, _ = model.predict(state)
             next_state, _, done = env.step(action)
             state = next_state
-        
-        state = env.reset()
-        reward_list.append(round(env.total_reward, 2))
+
         done = False
+        reward_list.append(round(env.total_reward, 2))
+        state = env.reset()
 
     print (np.average(reward_list))
 

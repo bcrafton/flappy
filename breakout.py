@@ -25,8 +25,9 @@ import tensorflow as tf
 import cv2
 import gym
 import gym_ple
-from collections import deque
 import random
+import time
+from collections import deque
 
 from lib.PPOModel import PPOModel
 
@@ -97,6 +98,7 @@ class FlappyBirdEnv:
                 
             if args.render:
                 self.env.render()
+                # time.sleep(0.01)
         
         next_frame = self._process(next_frame)
         self.state.append(next_frame)

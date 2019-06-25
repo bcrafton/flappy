@@ -124,6 +124,7 @@ elif args.alg == 'lel':
 if args.train:
     model = PPOModel(sess=sess, nbatch=64, nclass=4, epsilon=0.1, decay_max=8000, lr=args.lr, eps=args.eps, alg=args.alg, train=args.train)
 else:
+    print ('loading: ', weights_directory)
     model = PPOModel(sess=sess, nbatch=64, nclass=4, epsilon=0.1, decay_max=8000, lr=args.lr, eps=args.eps, alg=args.alg, restore=weights_directory, train=args.train)
 
 replay_buffer = []

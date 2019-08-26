@@ -89,7 +89,7 @@ class FlappyBirdEnv:
                 break
 
             if args.render:
-                self.env.render()
+                self.env.render(mode='human')
         
         next_frame = self._process(next_frame)
         self.state.append(next_frame)

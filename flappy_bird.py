@@ -4,16 +4,21 @@ import os
 import sys
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--lr', type=float, default=1e-4)
-parser.add_argument('--eps', type=float, default=1.)
+parser.add_argument('--lr', type=float, default=2.5e-4)
+parser.add_argument('--eps', type=float, default=1e-5)
 parser.add_argument('--gpu', type=int, default=0)
+parser.add_argument('--epochs', type=int, default=5)
+parser.add_argument('--batch_size', type=int, default=64)
+parser.add_argument('--mini_batch_size', type=int, default=512)
 parser.add_argument('--name', type=str, default="flappy")
+parser.add_argument('--train', type=int, default=1)
+parser.add_argument('--render', type=int, default=0)
+parser.add_argument('--alg', type=str, default="bp")
 args = parser.parse_args()
 
 if args.gpu >= 0:
     os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
     os.environ["CUDA_VISIBLE_DEVICES"]=str(args.gpu)
-
 
 import numpy as np
 import tensorflow as tf
@@ -22,25 +27,35 @@ import gym
 import gym_ple
 from collections import deque
 import random
-# import matplotlib.pyplot as plt
 
-from lib.Model import Model
+from lib.PPOModel import PPOModel
 
-from lib.Layer import Layer 
-from lib.ConvToFullyConnected import ConvToFullyConnected
-from lib.FullyConnected import FullyConnected
-from lib.Convolution import Convolution
-from lib.MaxPool import MaxPool
-from lib.BatchNorm import BatchNorm
+action_set = [
+    [0, 0],
+    [0, 1],
+    [1, 0],
+    [1, 1],
+]
+action_space = len(action_set)
+total_episodes = int(1e4)
 
-from lib.Activation import Activation
-from lib.Activation import Relu
-from lib.Activation import Linear
+####################################
 
-batch_size = 64
-total_steps = int(1e6)
-epsilon_init = 0.1
-decay_rate = epsilon_init / (1.0 * total_steps)
+def returns_advantages (replay_buffer, next_value, gamma=0.99, lam=0.95):
+    rewards = [rb['r'] for rb in replay_buffer]
+    values = [rb['v'] for rb in replay_buffer] + [next_value]
+    dones = [rb['d'] for rb in replay_buffer]
+
+    gae = 0
+    returns = np.zeros_like(rewards)
+    advantages = np.zeros_like(rewards)
+    for t in reversed(range(len(replay_buffer))):
+        delta = rewards[t] + gamma * values[t+1] * (1-dones[t]) - values[t]
+        gae = delta + gamma * lam * (1-dones[t]) * gae
+        advantages[t] = gae
+        returns[t] = advantages[t] + values[t]
+
+    return returns, advantages
 
 ####################################
 
@@ -51,7 +66,6 @@ class FlappyBirdEnv:
         self.total_reward = 0.0
         self.total_step = 0
         self.state = None
-        self.frame_skip = 2
 
     def reset(self):
         self.total_reward = 0.0
@@ -62,26 +76,24 @@ class FlappyBirdEnv:
         self.state = deque([frame] * 4, maxlen=4)
         
         return np.stack(self.state, axis=2)
-
+    
     def step(self, action):
-        next_frame, reward, done, _ = self.env.step(action)
-        reward = self._reward_shaping(reward)
-        self.total_step += 1
-        self.total_reward += reward
-
-        for _ in range(self.frame_skip):
+        cumulated_reward = 0.0
+        for a in action_set[action]:
+            next_frame, reward, done, _ = self.env.step(a)
+            reward = self._reward_shaping(reward)
+            cumulated_reward += reward
+            self.total_step += 1
+            self.total_reward += reward
             if done:
                 break
 
-            next_frame, reward, done, _ = self.env.step(1) # 1 is dont jump. 
-            reward = self._reward_shaping(reward)
-            self.total_step += 1
-            self.total_reward += reward
+            if args.render:
+                self.env.render(mode='human')
         
         next_frame = self._process(next_frame)
         self.state.append(next_frame)
-        
-        return np.stack(self.state, axis=2), reward, done
+        return np.stack(self.state, axis=2), cumulated_reward, done
 
     def _reward_shaping(self, reward):
         if  reward > 0.0:
@@ -94,151 +106,93 @@ class FlappyBirdEnv:
     def _process(self, state):
         output = cv2.cvtColor(state, cv2.COLOR_BGR2GRAY)
         output = output[:410, :]
-        output = cv2.resize(output, (80, 80))
+        output = cv2.resize(output, (84, 84))
         output = output / 255.0
         return output
 
 ####################################
 
-train_fc = True
-weights_fc = None
-
-train_conv = True
-weights_conv = None
-
-####################################
-
-s = tf.placeholder("float", [None, 80, 80, 4])
-a = tf.placeholder("float", [None, 2])
-y = tf.placeholder("float", [None])
-
-l1_1 = Convolution(input_sizes=[batch_size, 80, 80, 4], filter_sizes=[8, 8, 4, 32], init='alexnet', strides=[1,4,4,1], padding="SAME", name='conv1', load=weights_conv)
-l1_2 = BatchNorm(input_size=[batch_size, 20, 20, 32], name='conv1_bn', load=weights_conv)
-l1_3 = Relu()
-l1_4 = MaxPool(size=[batch_size, 20, 20, 32], ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding="SAME")
-
-l2_1 = Convolution(input_sizes=[batch_size, 10, 10, 32], filter_sizes=[4, 4, 32, 64], init='alexnet', strides=[1,2,2,1], padding="SAME", name='conv2', load=weights_conv)
-l2_2 = BatchNorm(input_size=[batch_size, 5, 5, 64], name='conv2_bn', load=weights_conv)
-l2_3 = Relu()
-
-l3_1 = Convolution(input_sizes=[batch_size, 5, 5, 64], filter_sizes=[3, 3, 64, 64], init='alexnet', strides=[1,1,1,1], padding="SAME", name='conv3', load=weights_conv)
-l3_2 = BatchNorm(input_size=[batch_size, 5, 5, 64], name='conv3_bn', load=weights_conv)
-l3_3 = Relu()
-
-l4 = ConvToFullyConnected(input_shape=[5, 5, 64])
-
-l5_1 = FullyConnected(input_shape=5*5*64, size=512, init='alexnet', name='fc1', load=weights_fc)
-l5_2 = BatchNorm(input_size=[batch_size, 512], name='fc1_bn', load=weights_fc)
-l5_3 = Relu()
-
-l6 = FullyConnected(input_shape=512, size=2, init='alexnet', name='fc2', load=weights_fc)
-
-model = Model(layers=[l1_1, l1_2, l1_3, l1_4, \
-                      l2_1, l2_2, l2_3,       \
-                      l3_1, l3_2, l3_3,       \
-                      l4,                     \
-                      l5_1, l5_2, l5_3,       \
-                      l6,                     \
-                      ])
-
-####################################
-
-predict = model.predict(state=s)
-gvs = model.gvs(state=s, action=a, reward=y)
-get_weights = model.get_weights()
-train = tf.train.AdamOptimizer(learning_rate=args.lr, beta1=0.9, beta2=0.999, epsilon=args.eps).apply_gradients(grads_and_vars=gvs)
-
-####################################
-
-filename = args.name + '.results'
-f = open(filename, "w")
-f.write(filename + "\n")
-f.write("total params: " + str(model.num_params()) + "\n")
-f.close()
-
-####################################
-
 sess = tf.InteractiveSession()
-sess.run(tf.initialize_all_variables())
-    
-replay_buffer = deque(maxlen=10000)
 
+####################################
+
+if args.alg == 'bp':
+    weights_directory = './weights/flappy_bird/flappy_bird.ckpt'
+elif args.alg == 'lel':
+    weights_directory = './weights/flappy_bird_lel/flappy_bird.ckpt'
+
+if args.train:
+    model = PPOModel(sess=sess, nbatch=64, nclass=4, epsilon=0.1, decay_max=8000, lr=args.lr, eps=args.eps, alg=args.alg, train=args.train)
+else:
+    print ('loading: ', weights_directory)
+    model = PPOModel(sess=sess, nbatch=64, nclass=4, epsilon=0.1, decay_max=8000, lr=args.lr, eps=args.eps, alg=args.alg, restore=weights_directory, train=args.train)
+
+replay_buffer = []
 env = FlappyBirdEnv()
 state = env.reset()
 
-action_list = []
-for e in range(total_steps):
-    
-    epsilon = epsilon_init - e * decay_rate
-    
-    #####################################
+####################################
 
-    # should decay epsilon here ...
-    # rand < eps because eps is % random actions. 
-    if np.random.rand() < epsilon:
-        action_idx = env.env.action_space.sample()
-    else:
-        q_value = predict.eval(feed_dict={s : [state]})
-        action_idx = np.argmax(q_value)
+if args.train:
+    sess.run(tf.initialize_all_variables())
 
-    action = np.zeros(2)
-    action[action_idx] = 1
-    action_list.append(action_idx)
-    
-    next_state, reward, done = env.step(action_idx)
-    replay_buffer.append((state, action, reward, next_state, done))
-    state = next_state
-    
-    '''
-    print (action_idx)
-    plt.imshow(state[:, :, 3])
-    plt.show()
-    '''
-    
-    if done:
-        p = "%d %f" % (e, env.total_reward)
-        print (p)
-        f = open(filename, "a")
-        f.write(p + "\n")
-        f.close()
+####################################
 
-        action_list = []
-        state = env.reset()
-    
-    #####################################
+reward_list = []
+for e in range(total_episodes):
 
-    if e > 1000:
-        # could be far more efficient here if we stored the processed state, action, y values somewhere else.
-        minibatch = random.sample(replay_buffer, batch_size)
-
-        # get the batch variables
-        state_batch = [d[0] for d in minibatch]
-        action_batch = [d[1] for d in minibatch]
-        reward_batch = [d[2] for d in minibatch]
-        next_state_batch = [d[3] for d in minibatch]
-
-        y_batch = []
-        next_reward_batch = predict.eval(feed_dict={s : next_state_batch})
-        for i in range(0, len(minibatch)):
-            done = minibatch[i][4]
+    print ("%d/%d" % (e, total_episodes), reward_list)
+    reward_list = []
             
-            # if done, only equals reward
-            if done:
-                y_batch.append(reward_batch[i])
-            else:
-                y_batch.append(reward_batch[i] + 0.99 * np.max(next_reward_batch[i]))
+    #####################################
 
-        # perform gradient step
-        train.run(feed_dict = {s:state_batch, a:action_batch, y:y_batch})
+    replay_buffer = []
+    for _ in range(args.mini_batch_size):
 
-    if (e % 1000) == 0:
-        w = sess.run(get_weights)
-        np.save(args.name, w)
+        action, value, nlps = model.predict(state)
+        
+        ################################
+        
+        next_state, reward, done = env.step(action)
+
+        if done and env.total_step >= 10000:
+            # wait not sure what other dude used here ...
+            _, next_value, _ = model.predict(next_state)
+            reward += 0.99 * next_value
+        
+        replay_buffer.append({'s':state, 'v': value, 'a':action, 'r':reward, 'd':done, 'n':nlps})
+        state = next_state
+        
+        if done:
+            reward_list.append(round(env.total_reward, 2))
+            state = env.reset()
+
+    # other dude just used next_value=0
+    _, next_value, _ = model.predict(next_state)
+    rets, advs = returns_advantages(replay_buffer, next_value)
 
     #####################################
 
+    if args.train:
+    
+        states = [d['s'] for d in replay_buffer]
+        rewards = rets
+        advantages = advs
+        advantages = (advantages - np.mean(advantages)) / (np.std(advantages) + 1e-8)
+        actions = [d['a'] for d in replay_buffer]
+        values = [d['v'] for d in replay_buffer]
+        nlps = [d['n'] for d in replay_buffer]
+        
+        for _ in range(args.epochs):
+            for batch in range(0, args.mini_batch_size, args.batch_size):
+                a = batch
+                b = batch + args.batch_size
+                model.train(states[a:b], rewards[a:b], advantages[a:b], actions[a:b], values[a:b], nlps[a:b])
 
+        model.set_weights()
 
+        if ((e + 1) % 1000 == 0):
+            model.save_weights(weights_directory)
 
 
 

@@ -43,6 +43,9 @@ class Relu(Activation, Layer):
     def get_weights(self):
         return []
 
+    def set_weights(self, weight_dic):
+        return []
+
     def num_params(self):
         return 0
 

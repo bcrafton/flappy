@@ -1,0 +1,2 @@
+model_checkpoint_path: "flappy_bird.ckpt"
+all_model_checkpoint_paths: "flappy_bird.ckpt"

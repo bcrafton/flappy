@@ -14,7 +14,10 @@ class ConvToFullyConnected(Layer):
 
     def get_weights(self):
         return []
-        
+
+    def set_weights(self, weight_dic):
+        return []
+
     def output_shape(self):
         return np.prod(self.shape)
         

@@ -2,6 +2,7 @@
 import argparse
 import os
 import sys
+import matplotlib.pyplot as plt
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--lr', type=float, default=2.5e-4)
@@ -95,10 +96,9 @@ class FlappyBirdEnv:
 
             if done:
                 break
-                
+
             if args.render:
-                self.env.render()
-                # time.sleep(0.01)
+                self.env.render(mode='human')
         
         next_frame = self._process(next_frame)
         self.state.append(next_frame)
@@ -109,9 +109,11 @@ class FlappyBirdEnv:
         
     def _process(self, state):
         output = cv2.cvtColor(state, cv2.COLOR_BGR2GRAY)
+        plt.imsave('./512x280/%05d.jpg' % (self.total_step), output)
         output = output[:410, :]
         output = cv2.resize(output, (84, 84))
         output = output / 255.0
+        plt.imsave('./84x84/%05d.jpg' % (self.total_step), output)
         return output
 
 ####################################
@@ -134,6 +136,8 @@ else:
 replay_buffer = []
 env = FlappyBirdEnv()
 state = env.reset()
+
+params = tf.trainable_variables()
 
 ####################################
 
@@ -177,30 +181,48 @@ for e in range(total_episodes):
 
     #####################################
 
-    states = [d['s'] for d in replay_buffer]
-    rewards = rets
-    advantages = advs
-    advantages = (advantages - np.mean(advantages)) / (np.std(advantages) + 1e-8)
-    actions = [d['a'] for d in replay_buffer]
-    values = [d['v'] for d in replay_buffer]
-    nlps = [d['n'] for d in replay_buffer]
-    
-    for _ in range(args.epochs):
-        for batch in range(0, args.mini_batch_size, args.batch_size):
-            a = batch
-            b = batch + args.batch_size
-            model.train(states[a:b], rewards[a:b], advantages[a:b], actions[a:b], values[a:b], nlps[a:b])
+    if args.train:
+        states = [d['s'] for d in replay_buffer]
+        rewards = rets
+        advantages = advs
+        advantages = (advantages - np.mean(advantages)) / (np.std(advantages) + 1e-8)
+        actions = [d['a'] for d in replay_buffer]
+        values = [d['v'] for d in replay_buffer]
+        nlps = [d['n'] for d in replay_buffer]
+        
+        for _ in range(args.epochs):
+            for batch in range(0, args.mini_batch_size, args.batch_size):
+                a = batch
+                b = batch + args.batch_size
+                model.train(states[a:b], rewards[a:b], advantages[a:b], actions[a:b], values[a:b], nlps[a:b])
 
-    model.set_weights()
+        model.set_weights()
 
-    #####################################
-    
-    if ((e + 1) % 1000 == 0):
-        if args.train:
+        if ((e + 1) % 1000 == 0):
             model.save_weights(weights_directory)
 
+    '''
+    [conv1, conv1_bias, _, _, conv2, conv2_bias, _, _, conv3, conv3_bias, _, _, dense1, dense1_bias, values, values_bias, actions, actions_bias] = sess.run(params, feed_dict={})
 
+    weights = {}
+    weights['conv1']      = conv1
+    weights['conv1_bias'] = conv1_bias
+    weights['conv2']      = conv2
+    weights['conv2_bias'] = conv2_bias
+    weights['conv3']      = conv3
+    weights['conv3_bias'] = conv3_bias
 
+    weights['dense1']       = dense1
+    weights['dense1_bias']  = dense1_bias
+    weights['values']       = values
+    weights['values_bias']  = values_bias
+    weights['actions']      = actions
+    weights['actions_bias'] = actions_bias
+
+    print ('saving weights')
+    np.save('breakout_weights', weights)
+    '''
+    assert (False)
 
 
 

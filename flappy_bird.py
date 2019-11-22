@@ -13,7 +13,6 @@ parser.add_argument('--mini_batch_size', type=int, default=512)
 parser.add_argument('--name', type=str, default="flappy")
 parser.add_argument('--train', type=int, default=1)
 parser.add_argument('--render', type=int, default=0)
-parser.add_argument('--alg', type=str, default="bp")
 args = parser.parse_args()
 
 if args.gpu >= 0:
@@ -25,10 +24,11 @@ import tensorflow as tf
 import cv2
 import gym
 import gym_ple
-from collections import deque
 import random
+import time
+from collections import deque
 
-from lib.PPOModel import PPOModel
+from PPOModel import PPOModel
 
 action_set = [
     [0, 0],
@@ -116,16 +116,13 @@ sess = tf.InteractiveSession()
 
 ####################################
 
-if args.alg == 'bp':
-    weights_directory = './weights/flappy_bird/flappy_bird.ckpt'
-elif args.alg == 'lel':
-    weights_directory = './weights/flappy_bird_lel/flappy_bird.ckpt'
+weights_filename = 'weights/flappy_bird/weights.npy'
+weights = np.load(weights_filename, allow_pickle=True).item()
 
 if args.train:
-    model = PPOModel(sess=sess, nbatch=64, nclass=4, epsilon=0.1, decay_max=8000, lr=args.lr, eps=args.eps, alg=args.alg, train=args.train)
+    model = PPOModel(sess=sess, nbatch=64, nclass=4, epsilon=0.1, decay_max=8000, lr=args.lr, eps=args.eps, weights=None, train=args.train)
 else:
-    print ('loading: ', weights_directory)
-    model = PPOModel(sess=sess, nbatch=64, nclass=4, epsilon=0.1, decay_max=8000, lr=args.lr, eps=args.eps, alg=args.alg, restore=weights_directory, train=args.train)
+    model = PPOModel(sess=sess, nbatch=64, nclass=4, epsilon=0.1, decay_max=8000, lr=args.lr, eps=args.eps, weights=weights, train=args.train)
 
 replay_buffer = []
 env = FlappyBirdEnv()
@@ -133,8 +130,7 @@ state = env.reset()
 
 ####################################
 
-if args.train:
-    sess.run(tf.initialize_all_variables())
+sess.run(tf.initialize_all_variables())
 
 ####################################
 
@@ -174,7 +170,7 @@ for e in range(total_episodes):
     #####################################
 
     if args.train:
-    
+
         states = [d['s'] for d in replay_buffer]
         rewards = rets
         advantages = advs
@@ -192,7 +188,8 @@ for e in range(total_episodes):
         model.set_weights()
 
         if ((e + 1) % 1000 == 0):
-            model.save_weights(weights_directory)
+            print ('saving weights')
+            model.save_weights(weights_filename)
 
 
 

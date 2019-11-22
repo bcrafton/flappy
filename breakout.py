@@ -13,7 +13,6 @@ parser.add_argument('--mini_batch_size', type=int, default=512)
 parser.add_argument('--name', type=str, default="flappy")
 parser.add_argument('--train', type=int, default=1)
 parser.add_argument('--render', type=int, default=0)
-parser.add_argument('--alg', type=str, default="bp")
 args = parser.parse_args()
 
 if args.gpu >= 0:
@@ -29,7 +28,7 @@ import random
 import time
 from collections import deque
 
-from lib.PPOModel import PPOModel
+from PPOModel import PPOModel
 
 ####################################
 
@@ -95,10 +94,9 @@ class FlappyBirdEnv:
 
             if done:
                 break
-                
+
             if args.render:
-                self.env.render()
-                # time.sleep(0.01)
+                self.env.render(mode='human')
         
         next_frame = self._process(next_frame)
         self.state.append(next_frame)
@@ -120,16 +118,13 @@ sess = tf.InteractiveSession()
 
 ####################################
 
-if args.alg == 'bp':
-    weights_directory = './weights/breakout/breakout.ckpt'
-elif args.alg == 'lel':
-    weights_directory = './weights/breakout_lel/breakout.ckpt'
+weights_filename = 'weights/breakout/weights.npy'
+weights = np.load(weights_filename, allow_pickle=True).item()
 
 if args.train:
-    model = PPOModel(sess=sess, nbatch=64, nclass=4, epsilon=0.1, decay_max=8000, lr=args.lr, eps=args.eps, alg=args.alg, train=args.train)
+    model = PPOModel(sess=sess, nbatch=64, nclass=4, epsilon=0.1, decay_max=8000, lr=args.lr, eps=args.eps, weights=weights, train=args.train)
 else:
-    print ('loading: ', weights_directory)
-    model = PPOModel(sess=sess, nbatch=64, nclass=4, epsilon=0.1, decay_max=8000, lr=args.lr, eps=args.eps, alg=args.alg, restore=weights_directory, train=args.train)
+    model = PPOModel(sess=sess, nbatch=64, nclass=4, epsilon=0.1, decay_max=8000, lr=args.lr, eps=args.eps, weights=weights, train=args.train)
 
 replay_buffer = []
 env = FlappyBirdEnv()
@@ -137,8 +132,7 @@ state = env.reset()
 
 ####################################
 
-if args.train:
-    sess.run(tf.initialize_all_variables())
+sess.run(tf.initialize_all_variables())
 
 ####################################
 
@@ -177,28 +171,27 @@ for e in range(total_episodes):
 
     #####################################
 
-    states = [d['s'] for d in replay_buffer]
-    rewards = rets
-    advantages = advs
-    advantages = (advantages - np.mean(advantages)) / (np.std(advantages) + 1e-8)
-    actions = [d['a'] for d in replay_buffer]
-    values = [d['v'] for d in replay_buffer]
-    nlps = [d['n'] for d in replay_buffer]
-    
-    for _ in range(args.epochs):
-        for batch in range(0, args.mini_batch_size, args.batch_size):
-            a = batch
-            b = batch + args.batch_size
-            model.train(states[a:b], rewards[a:b], advantages[a:b], actions[a:b], values[a:b], nlps[a:b])
+    if args.train:
 
-    model.set_weights()
+        states = [d['s'] for d in replay_buffer]
+        rewards = rets
+        advantages = advs
+        advantages = (advantages - np.mean(advantages)) / (np.std(advantages) + 1e-8)
+        actions = [d['a'] for d in replay_buffer]
+        values = [d['v'] for d in replay_buffer]
+        nlps = [d['n'] for d in replay_buffer]
+        
+        for _ in range(args.epochs):
+            for batch in range(0, args.mini_batch_size, args.batch_size):
+                a = batch
+                b = batch + args.batch_size
+                model.train(states[a:b], rewards[a:b], advantages[a:b], actions[a:b], values[a:b], nlps[a:b])
 
-    #####################################
-    
-    if ((e + 1) % 1000 == 0):
-        if args.train:
-            model.save_weights(weights_directory)
+        model.set_weights()
 
+        if ((e + 1) % 100 == 0):
+            print ('saving weights')
+            model.save_weights(weights_filename)
 
 
 
